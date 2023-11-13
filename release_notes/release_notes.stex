@@ -39,6 +39,7 @@ procedure) is given in parentheses.
      \item AArch64 including Android, nonthreaded (arm64le) and threaded (tarm64le)
      \item ARMv6 (32-bit) including Android, nonthreaded (arm32le) and threaded (tarm32le)
      \item RV64G (64-bit RISC-V), nonthreaded (rv64le) and threaded (trv64le)
+     \item LoongArch64 (64-bit LoongArch), nonthreaded (la64le) and threaded (tla64le)
      \item PowerPC (32-bit), nonthreaded (ppc32le) and threaded (tppc32le)
      \end{itemizeC}
 \item Mac OS
