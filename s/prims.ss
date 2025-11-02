@@ -832,10 +832,6 @@
    (lambda (x y)
       ($fx+? x y)))
 
-(define $fxx+
-   (lambda (x y)
-      ($fxx+ x y)))
-
 (define $fx-?
    (lambda (x y)
       ($fx-? x y)))
@@ -1495,6 +1491,14 @@
 (define set-cdr!
    (lambda (p v)
       (#2%set-cdr! p v)))
+
+(define car-cas!
+  (lambda (p old-v new-v)
+    (#2%car-cas! p old-v new-v)))
+
+(define cdr-cas!
+  (lambda (p old-v new-v)
+    (#2%cdr-cas! p old-v new-v)))
 
 (define box (lambda (x) (box x)))
 
@@ -2867,6 +2871,10 @@
 (define keep-live
   (lambda (x)
     (#2%keep-live x)))
+
+(define black-box
+  (lambda (x)
+    (#2%black-box x)))
 
 (when-feature windows
 (let ()

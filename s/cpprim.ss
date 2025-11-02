@@ -30,6 +30,7 @@
                  (pair? e*)
                  (nanopass-case (L7 Expr) (car e*)
                    [(quote ,d) (eq? d 'double)])))]
+       [(foreign-call ,info ,e ,e* ...) (fp-type? (info-foreign-result-type info))]
        [(seq ,e0 ,e1) (flonum-result? e1 (fx- fuel 1))]
        [(let ([,x* ,e*] ...) ,body) (flonum-result? body (fx- fuel 1))]
        [(if ,e1 ,e2 ,e3) (and (flonum-result? e2 (fxsrl fuel 1))
@@ -78,7 +79,7 @@
              [,pr #t]
              [(call ,info ,mdcl ,pr ,e* ...)
               (all-set? (prim-mask single-valued) (primref-flags pr))]
-             [(foreign-call ,info ,e, e* ...) #t]
+             [(foreign-call ,info ,e ,e* ...) #t]
              [(alloc ,info ,e) #t]
              [(set! ,lvalue ,e) #t]
              [(profile ,src) #t]
@@ -214,7 +215,7 @@
          [else
           (let ([e* (Expr* e*)])
             (values `(inline ,info ,prim ,e* ...) #f))])]
-      [(set! ,[lvalue #t -> lvalue fp-unboxed?l] ,e)
+      [(set! ,[lvalue #t #f -> lvalue fp-unboxed?l] ,e)
        (let ([fp? (fp-lvalue? lvalue)])
          (let-values ([(e unboxed?) (Expr e fp?)])
            (let ([e (if (and fp? (not unboxed?))
@@ -277,8 +278,21 @@
       [(mvcall ,info ,e1 ,e2) (values `(mvcall ,info ,(Expr1 e1) ,(Expr1 e2)) #f)]
       [(mvlet ,e ((,x** ...) ,interface* ,body*) ...)
        (values `(mvlet ,(Expr1 e) ((,x** ...) ,interface* ,(map Expr1 body*)) ...) #f)]
-      [,lvalue (Lvalue lvalue can-unbox-fp?)])
-    (Lvalue : Lvalue (ir [unboxed-fp? #f]) -> Lvalue (#f)
+      [,lvalue (Lvalue lvalue can-unbox-fp? #t)])
+    (Lvalue : Lvalue (ir [unboxed-fp? #f] [expr-ok? #f]) -> Lvalue (#f)
+      [(mref ,e1 ,e2 ,imm ,type)
+       (guard (and unboxed-fp?
+                   expr-ok?
+                   (eq? type 'fp)
+                   (eq? e2 %zero)
+                   (eqv? imm (constant flonum-data-disp))))
+       ;; avoid boxing only to immediately unbox, which is relevant for `%store-double->single`
+       (let-values ([(e1 unboxed?) (Expr e1 #t)])
+         (cond
+           [unboxed? (if unboxed-fp?
+                         (values e1 #t)
+                         (values (unboxed-fp->boxed e1) #f))]
+           [else (values `(mref ,e1 ,%zero ,imm ,type) #t)]))]
       [(mref ,e1 ,e2 ,imm ,type)
        (let ([e `(mref ,(Expr1 e1) ,(Expr1 e2) ,imm ,type)])
          (if (and (eq? type 'fp) (not unboxed-fp?))
@@ -411,6 +425,11 @@
       (syntax-rules ()
         [(_ multiple-ref? (b ...) e)
          ($bind dirty-store-binder multiple-ref? ptr (b ...) e)]))
+    (define-syntax bind-type-object-type ; NB: caller must bind expr
+      (syntax-rules ()
+        [(_ ([id expr]) body)
+         (bind #t ([id (%mref ,expr ,(constant typed-object-type-disp))])
+           body)]))
     (define lift-fp-unboxed
       (lambda (k)
         (lambda (e)
@@ -532,10 +551,7 @@
             ;; by counter-productive by introducing too many branches
             (build-simple-or
              (%type-check mask-flonum type-flonum ,e1)
-             (build-and
-              (%type-check mask-typed-object type-typed-object ,e1)
-              (%type-check mask-other-number type-other-number
-                ,(%mref ,e1 ,(constant bignum-type-disp)))))
+             (%typed-object-check mask-other-number type-other-number ,e1))
             (build-libcall #f src sexpr eqv? e1 e2))))))
     (define make-build-eqv?
       (lambda (src sexpr)
@@ -1119,15 +1135,11 @@
                                                 ,(%mref ,t ,%zero ,(constant flonum-data-disp) fp))))
                       ,t)))
                 (bind #f (base index)
-                  (bind #t ([t (%constant-alloc type-flonum (constant size-flonum))])
-                    (%seq
-                      (set! ,(%mref ,t ,%zero ,(constant flonum-data-disp) fp)
-                            (unboxed-fp (inline ,(make-info-unboxed-args '(#t))
-                                                ,%load-single->double
-                                                ;; slight abuse to call this "unboxed", but `load-single->double`
-                                                ;; wants an FP-flavored address
-                                                ,(%mref ,base ,index ,offset fp))))
-                      ,t))))]
+                  `(unboxed-fp (inline ,(make-info-unboxed-args '(#t))
+                                       ,%load-single->double
+                                       ;; slight abuse to call this "unboxed", but `load-single->double`
+                                       ;; wants an FP-flavored address
+                                       ,(%mref ,base ,index ,offset fp)))))]
            [(integer-8 integer-16 integer-24 integer-32 integer-40 integer-48 integer-56 integer-64)
             (build-int-load swapped? type base index offset
               (if (and (eqv? (constant ptr-bits) 32) (memq type '(integer-40 integer-48 integer-56 integer-64)))
@@ -1217,7 +1229,8 @@
                        ;; slight abuse to call this "unboxed", but `store-double->single`
                        ;; wants an FP-flavored address
                        ,(%mref ,base ,index ,offset fp)
-                       (raw ,(%mref ,value ,%zero ,(constant flonum-data-disp) fp))))]
+                       ;; Note: no `raw` wrapper in an unboxed position
+                       ,(%mref ,value ,%zero ,(constant flonum-data-disp) fp)))]
            ; 40-bit+ only on 64-bit machines
            [(integer-8 integer-16 integer-24 integer-32 integer-40 integer-48 integer-56 integer-64
              unsigned-8 unsigned-16 unsigned-24 unsigned-32 unsigned-40 unsigned-48 unsigned-56 unsigned-64)
@@ -1545,6 +1558,9 @@
            (%inline eq? ,e1 ,e2))])
     (define-inline 2 keep-live
       [(e) (%seq ,(%inline keep-live ,e) ,(%constant svoid))])
+    (define-inline 2 black-box
+      [(e) (bind #t (e)
+             (%seq ,(%inline keep-live ,e) ,e))])
     (let ()
       (define (zgo src sexpr e e1 e2 r6rs?)
         (build-simple-or
@@ -1748,12 +1764,30 @@
                         ,t))
                 (goto ,Lfalse))))])
     (define-inline 3 $fxx+
+      [() `(immediate ,(fix 0))]
+      [(e) (ensure-single-valued e)]
       [(e1 e2)
        (bind #t (e1 e2)
          (bind #f ([t (%inline +/ovfl ,e1 ,e2)])
            `(if (inline ,(make-info-condition-code 'overflow #f #t) ,%condition-code)
                 ,(build-libcall #t src sexpr + e1 e2)
-                ,t)))])
+                ,t)))]
+      [e* #f])
+    (define-inline 3 $fxx-
+      [(e)
+       (bind #t (e)
+         (bind #f ([t (%inline -/ovfl (immediate ,(fix 0)) ,e)])
+           `(if (inline ,(make-info-condition-code 'overflow #f #t) ,%condition-code)
+                ,(build-libcall #t src sexpr - `(immediate ,(fix 0)) e)
+                ,t)))]
+      [(e1 e2)
+       (bind #t (e1 e2)
+         (bind #f ([t (%inline -/ovfl ,e1 ,e2)])
+           `(if (inline ,(make-info-condition-code 'overflow #f #t) ,%condition-code)
+                ,(build-libcall #t src sexpr - e1 e2)
+                ,t)))]
+      [(e1 . e*) #f])
+
     (let ()
       (define (go src sexpr e1 e2)
         (let ([Llib (make-local-label 'Llib)])
@@ -3093,8 +3127,7 @@
       (def-len bytevector-length mask-bytevector type-bytevector bytevector-type-disp bytevector-length-offset)
       (def-len stencil-vector-mask mask-stencil-vector type-stencil-vector stencil-vector-type-disp stencil-vector-mask-offset)
       (def-len $stencil-vector-mask mask-any-stencil-vector type-any-stencil-vector stencil-vector-type-disp stencil-vector-mask-offset))
-    ; TODO: consider adding integer-valued?, rational?, rational-valued?,
-    ; real?, and real-valued?
+    ; TODO: consider adding integer-valued?, rational-valued? and real-valued?
     (define-inline 2 integer?
       [(e) (bind #t (e)
              (build-simple-or
@@ -3104,6 +3137,64 @@
                  (build-and
                    (%type-check mask-flonum type-flonum ,e)
                    `(call ,(make-info-call src sexpr #f #f #f) #f ,(lookup-primref 3 'flinteger?) ,e)))))])
+    (define-inline 2 rational?
+      [(e) (bind #t (e)
+             (build-simple-or
+               (%type-check mask-fixnum type-fixnum ,e)
+               (build-simple-or
+                 (build-and
+                   (%type-check mask-flonum type-flonum ,e)
+                   `(call ,(make-info-call src sexpr #f #f #f) #f ,(lookup-primref 3 'flfinite?) ,e))
+                 (build-and
+                   (%type-check mask-typed-object type-typed-object ,e)
+                   (bind-type-object-type ([t e])
+                     (build-simple-or
+                       (%type-check mask-bignum type-bignum ,t)
+                       (%type-check mask-ratnum type-ratnum ,t)))))))])
+    (define-inline 2 real?
+      [(e) (bind #t (e)
+             (build-simple-or
+               (%type-check mask-fixnum type-fixnum ,e)
+               (build-simple-or
+                 (%type-check mask-flonum type-flonum ,e)
+               (build-and
+                 (%type-check mask-typed-object type-typed-object ,e)
+                 (bind-type-object-type ([t e])
+                   (build-simple-or
+                     (%type-check mask-bignum type-bignum ,t)
+                     (%type-check mask-ratnum type-ratnum ,t)))))))])
+    (define-inline 2 inexact?
+      [(e) (bind #t (e)
+             (build-and
+               (build-not (%type-check mask-fixnum type-fixnum ,e))
+               (build-simple-or
+                 (%type-check mask-flonum type-flonum ,e)
+                 (build-simple-or
+                   (%typed-object-check mask-inexactnum type-inexactnum ,e)
+                   (build-and
+                     (build-not (%typed-object-check mask-other-number type-other-number ,e))
+                     (build-libcall #t src sexpr inexact? e))))))])
+    (define-inline 2 exact?
+      [(e) (bind #t (e)
+             (build-simple-or
+               (%type-check mask-fixnum type-fixnum ,e)
+               (build-and
+                 (build-not (%type-check mask-flonum type-flonum ,e))
+                 (build-and
+                   (build-not (%typed-object-check mask-inexactnum type-inexactnum ,e))
+                   (build-simple-or
+                    (%typed-object-check mask-other-number type-other-number ,e)
+                    (build-libcall #t src sexpr exact? e))))))])
+    (define-inline 3 inexact?
+      [(e) (bind #t (e)
+             (build-simple-or
+               (%type-check mask-flonum type-flonum ,e)
+               (%typed-object-check mask-inexactnum type-inexactnum ,e)))])
+    (define-inline 3 exact?
+      [(e) (bind #t (e)
+             (build-and
+               (build-not (%type-check mask-flonum type-flonum ,e))
+               (build-not (%typed-object-check mask-inexactnum type-inexactnum ,e))))])
     (let ()
       (define build-number?
         (lambda (e)
@@ -3112,10 +3203,7 @@
               (%type-check mask-fixnum type-fixnum ,e)
               (build-simple-or
                 (%type-check mask-flonum type-flonum ,e)
-                (build-and
-                  (%type-check mask-typed-object type-typed-object ,e)
-                  (%type-check mask-other-number type-other-number
-                    ,(%mref ,e ,(constant bignum-type-disp)))))))))
+                (%typed-object-check mask-other-number type-other-number ,e))))))
       (define-inline 2 number?
         [(e) (build-number? e)])
       (define-inline 2 complex?
@@ -3124,6 +3212,14 @@
       [(e1 e2) (build-dirty-store e1 (constant pair-car-disp) e2)])
     (define-inline 3 set-cdr!
       [(e1 e2) (build-dirty-store e1 (constant pair-cdr-disp) e2)])
+    (define-inline 3 car-cas!
+      [(e1 e2 e3)
+       (bind #t (e2)
+         (build-dirty-store e1 %zero (constant pair-car-disp) e3 (make-build-cas e2) build-cas-seq))])
+    (define-inline 3 cdr-cas!
+      [(e1 e2 e3)
+       (bind #t (e2)
+         (build-dirty-store e1 %zero (constant pair-cdr-disp) e3 (make-build-cas e2) build-cas-seq))])
     (define-inline 3 set-box!
       [(e1 e2) (build-dirty-store e1 (constant box-ref-disp) e2)])
     (define-inline 3 box-cas!
@@ -3168,6 +3264,20 @@
            `(if ,(%type-check mask-pair type-pair ,e-pair)
                 ,(build-dirty-store e-pair (constant pair-cdr-disp) e-new)
                 ,(build-libcall #t src sexpr set-cdr! e-pair e-new))))])
+    (define-inline 2 car-cas!
+      [(e-pair e-old e-new)
+       (bind #t (e-pair e-old)
+         (dirty-store-bind #t (e-new)
+           `(if ,(%type-check mask-pair type-pair ,e-pair)
+                ,(build-dirty-store e-pair %zero (constant pair-car-disp) e-new (make-build-cas e-old) build-cas-seq)
+                ,(build-libcall #t src sexpr car-cas! e-pair e-old e-new))))])
+    (define-inline 2 cdr-cas!
+      [(e-pair e-old e-new)
+       (bind #t (e-pair e-old)
+         (dirty-store-bind #t (e-new)
+           `(if ,(%type-check mask-pair type-pair ,e-pair)
+                ,(build-dirty-store e-pair %zero (constant pair-cdr-disp) e-new (make-build-cas e-old) build-cas-seq)
+                ,(build-libcall #t src sexpr cdr-cas! e-pair e-old e-new))))])
     (define-inline 3 $set-symbol-hash!
       ; no need for dirty store---e2 should be a fixnum
       [(e1 e2) `(set! ,(%mref ,e1 ,(constant symbol-hash-disp)) ,e2)])
@@ -4876,7 +4986,7 @@
       (let ()
         (define build-fl-make-rectangular
           (lambda (e1 e2)
-            (bind #f (e1 e2)
+            (bind #f fp (e1 e2)
               (bind #t ([t (%constant-alloc type-typed-object (constant size-inexactnum))])
                 (%seq
                    (set! ,(%mref ,t ,(constant inexactnum-type-disp))
@@ -5670,12 +5780,13 @@
         (define-syntax define-fptr-set!-inline
           (lambda (x)
             (define build-body
-              (lambda (type set maybe-massage-val)
+              (lambda (type set maybe-massage-val val-type)
                 #``(seq ,e-info
-                     #,(let ([body #`($do-fptr-set!-inline #,set #,type e-fptr e-offset e-val)])
-                         (if maybe-massage-val
-                             #`,(bind #f (e-offset [e-val (#,maybe-massage-val e-val)]) #,body)
-                             #`,(bind #f (e-offset e-val) #,body))))))
+                        ,(bind #f (e-offset)
+                           (bind #f #,val-type (#,(if maybe-massage-val
+                                                      #`[e-val (#,maybe-massage-val e-val)]
+                                                      #'e-val))
+                                 ($do-fptr-set!-inline #,set #,type e-fptr e-offset e-val))))))
             (define build-inline
               (lambda (name check-64? body)
                 #`(define-inline 3 #,name
@@ -5683,11 +5794,13 @@
                      #,(if check-64?
                            #`(and (fx>= (constant ptr-bits) 64) #,body)
                            body)])))
-            (syntax-case x ()
+            (syntax-case x (quote fp)
               [(_ check-64? name ?type set)
-               (build-inline #'name (datum check-64?) (build-body #'?type #'set #f))]
+               (build-inline #'name (datum check-64?) (build-body #'?type #'set #f #'ptr))]
+              [(_ check-64? name ?type set 'fp)
+               (build-inline #'name (datum check-64?) (build-body #'?type #'set #f #'fp))]
               [(_ check-64? name ?type set ?massage-value)
-               (build-inline #'name (datum check-64?) (build-body #'?type #'set #'?massage-value))])))
+               (build-inline #'name (datum check-64?) (build-body #'?type #'set #'?massage-value #'ptr))])))
 
         (define-fptr-set!-inline #f $fptr-set-integer-8! 'integer-8 build-object-set!)
         (define-fptr-set!-inline #f $fptr-set-unsigned-8! 'unsigned-8 build-object-set!)
@@ -5729,10 +5842,23 @@
         (define-fptr-set!-inline #t $fptr-set-swap-integer-64! 'integer-64 build-swap-object-set!)
         (define-fptr-set!-inline #t $fptr-set-swap-unsigned-64! 'unsigned-64 build-swap-object-set!)
 
-        (define-fptr-set!-inline #f $fptr-set-double-float! 'double-float build-object-set!)
+        (define-fptr-set!-inline #f $fptr-set-double-float! 'double-float build-object-set! 'fp)
         (define-fptr-set!-inline #t $fptr-set-swap-double-float! 'double-float build-swap-object-set!)
 
-        (define-fptr-set!-inline #f $fptr-set-single-float! 'single-float build-object-set!)
+        (define-fptr-set!-inline #f $fptr-set-single-float! 'single-float build-object-set! 'fp)
+
+        (define-inline 2 $fptr-set-double-float!
+          [(e-info e-fptr e-offset e-val)
+           (and (known-flonum-result? e-val)
+                (bind #f (e-offset)
+                  (bind #f fp (e-val)
+                        ($do-fptr-set!-inline build-object-set! 'double-float e-fptr e-offset e-val))))])
+        (define-inline 2 $fptr-set-single-float!
+          [(e-info e-fptr e-offset e-val)
+           (and (known-flonum-result? e-val)
+                (bind #f (e-offset)
+                  (bind #f fp (e-val)
+                        ($do-fptr-set!-inline build-object-set! 'single-float e-fptr e-offset e-val))))])
 
         (define-fptr-set!-inline #f $fptr-set-char! 'unsigned-8 build-object-set!
           (lambda (z) (build-char->integer z)))
