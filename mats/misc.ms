@@ -2058,7 +2058,9 @@
                                 (box 88)
                                 "" '#() '#vu8() (make-fxvector 0) (make-flvector 0)
                                 (string->immutable-string "") (vector->immutable-vector '#())
-                                (bytevector->immutable-bytevector '#vu8())))
+                                (bytevector->immutable-bytevector '#vu8())
+                                (make-ftype-pointer ftype-pointer 16)
+                                (make-ftype-scheme-object-pointer #t 1)))
     (define (same-vfasl-content? v)
       (andmap (lambda (a b)
                 (or (eqv? a b)
@@ -2078,6 +2080,16 @@
                                  (vfasl-demo-x b))
                          (equal? (vfasl-demo-y a)
                                  (vfasl-demo-y b)))
+                    (and (ftype-scheme-object-pointer? a)
+                         (ftype-scheme-object-pointer? b)
+                         (equal? (ftype-scheme-object-pointer-object a)
+                                 (ftype-scheme-object-pointer-object b))
+                         (eqv? (ftype-scheme-object-pointer-offset a)
+                               (ftype-scheme-object-pointer-offset b)))
+                    (and (ftype-pointer? a)
+                         (ftype-pointer? b)
+                         (eqv? (ftype-pointer-address a)
+                               (ftype-pointer-address b)))
                     (begin
                       (printf "~s ~s\n" a b)
                       #f)))
@@ -2102,7 +2114,7 @@
 
 (mat cost-center
   (error? ; wrong number of arguments
-    (make-cost-center 'foo))
+    (make-cost-center 'foo 'bar))
 
   (error? ; foo is not a cost center
     (with-cost-center 'foo (lambda () 5)))
@@ -2122,8 +2134,16 @@
   (error? ; #\c is not a cost center
     (reset-cost-center! #\c))
 
+  (error? ; "test" is not a cost center
+    (cost-center-name "test"))
+
   (let ([cc (make-cost-center)])
-    (cost-center? cc))
+    (cost-center? cc)
+    (string=? (format "~a" cc) "#<cost center>"))
+
+  (let ([cc (make-cost-center 'foo)])
+    (eq? (cost-center-name cc) 'foo)
+    (string=? (format "~a" cc) "#<cost center foo>"))
 
   ;;; instruction cost center tests
   ((lambda (x)

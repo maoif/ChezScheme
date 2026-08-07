@@ -295,6 +295,9 @@
     ;; for consistency with error before library entry was introduced:
     (lambda (who x i)
       ($oops who "invalid index ~s for bytevector ~s" i x)))
+  (define real-oops
+    (lambda (who x)
+      ($oops who "~s is not a real number" x)))
   (define number-oops
     (lambda (who x)
       ($oops who "~s is not a number" x)))
@@ -337,7 +340,7 @@
         (if (mutable-vector? v)
             (index-oops 'vector-set-fixnum! v i)
             (mutable-vector-oops 'vector-set-fixnum! v))
-        ($oops 'vector-set-fixnum! "~s is not a fixnum" x)))
+        (fixnum-oops 'vector-set-fixnum! x)))
 
   (define-library-entry (vector-length v)
     (vector-oops 'vector-length v))
@@ -432,15 +435,13 @@
 
   (define-library-entry (exact? x) (number-oops 'exact? x))
   (define-library-entry (inexact? x) (number-oops 'inexact? x))
+
+  (define-library-entry ($real->flonum who x)
+    (cond
+      [(fixnum? x) (fixnum->flonum x)]
+      [(or (bignum? x) (ratnum? x)) ($real->flonum/slow x)]
+      [else (real-oops who x)]))
 )
-
-(define-library-entry (real->flonum x who)
-  (cond
-    [(fixnum? x) (fixnum->flonum x)]
-    [(or (bignum? x) (ratnum? x)) (inexact x)]
-    [(flonum? x) x]
-    [else ($oops who "~s is not a real number" x)]))
-
 
 (let ()
   (define pair-oops
@@ -983,12 +984,17 @@
           [(fixnum? k)
            (if (fx< k 0)
                (invalidindexoops 'logbit0 k)
-               ($logbit0 k n))]
+               (if (and (if (fixnum? n) (fxnonnegative? n) ($bigpositive? n))
+                        (>= k (integer-length n)))
+                   n
+                   ($logbit0 k n)))]
           [(bignum? k)
            (if (< k 0)
                (invalidindexoops 'logbit0 k)
-              ; $logbit0 requires k to be a fixnum
-               ($logand n ($lognot (ash 1 k))))]
+               (if (if (fixnum? n) (fxnonnegative? n) ($bigpositive? n))
+                   n
+                   ; $logbit0 requires k to be a fixnum
+                   ($logand n ($lognot (ash 1 k)))))]
           [else (invalidindexoops 'logbit0 k)])
         (exactintoops1 'logbit0 n)))
 
@@ -1002,8 +1008,10 @@
           [(bignum? k)
            (if (< k 0)
                (invalidindexoops 'logbit1 k)
-              ; $logbit1 requires k to be a fixnum
-               ($logor n (ash 1 k)))]
+               (if (if (fixnum? n) (fxnegative? n) (not ($bigpositive? n)))
+                   n
+                   ; $logbit1 requires k to be a fixnum
+                   ($logor n (ash 1 k))))]
           [else (invalidindexoops 'logbit1 k)])
         (exactintoops1 'logbit1 n)))
 
@@ -1701,7 +1709,7 @@
 
     (define adjust!
       (lambda (h vec1 n2)
-        (let ([vec2 (make-vector n2 '())]
+        (let ([vec2 ($make-vector/no-interrupt-trap n2 '())]
               [mask2 (fx- n2 1)])
           (vector-for-each
             (lambda (b)

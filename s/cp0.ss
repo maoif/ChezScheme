@@ -2232,10 +2232,6 @@
                                     body)))))
                      ($sputprop 'prim 'key (foo 'prim)) ...)))))))
 
-      (define generic-nan?
-        (lambda (x)
-          (and (flonum? x) ($nan? x))))
-
       (define fl-nan?
         (lambda (x)
           ($nan? x)))
@@ -2243,6 +2239,10 @@
       (define cfl-nan?
         (lambda (z)
           (and ($nan? (cfl-real-part z)) ($nan? (cfl-imag-part z)))))
+
+      (define generic-cfl-nan?
+        (lambda (x)
+          (and (cflonum? x) (cfl-nan? x))))
 
       (define exact-zero?
         (lambda (x)
@@ -2432,6 +2432,24 @@
           [(who e) (visit-and-maybe-extract* addr-int?  ([de e])
                      (residualize-seq '() (list who e) ctxt)
                      true-rec)]))
+
+      (let ()
+        (define null-fptr-constant?
+          (lambda (e1)
+            (cp0-constant? (lambda (d)
+                             (and ($ftype-pointer? d)
+                                  (eqv? 0 (ftype-pointer-address d))))
+                           e1)))
+        (define-inline 2 ftype-pointer-address
+          [(e) (let ([xval (value-visit-operand! e)])
+                 (nanopass-case (Lsrc Expr) (result-exp xval)
+                   [(call ,preinfo ,pr ,e1 ,e2 ,e3)
+                    (guard (and (eq? (primref-name pr) '$fptr-&ref)
+                                (all-set? (prim-mask unsafe) (primref-flags pr))
+                                (null-fptr-constant? e1)))
+                    (residualize-seq '() (list e) ctxt)
+                    e2]
+                   [else #f]))]))
 
       (define-inline 2 (memq memv member assq assv assoc)
         [(x ls)
@@ -3045,6 +3063,7 @@
               [(quote ,d) (flonum? d)]
               [(call ,preinfo ,pr ,e* ...) (eq? 'flonum ($sgetprop (primref-name pr) '*result-type* #f))]
               [(call ,preinfo (foreign (,conv* ...) ,name ,e (,arg-type* ...) ,result-type) ,e* ...)
+               (safe-assert (memq 'atomic conv*))
                (nanopass-case (Ltype Type) result-type
                  [(fp-double-float) #t]
                  [(fp-single-float) #t]
@@ -3053,7 +3072,7 @@
 
         ; handling nans here using the support for handling exact zero in
         ; the multiply case.  maybe shouldn't bother with nans anyway.
-        (partial-folder plus + + 0 generic-nan?)
+        (partial-folder plus + + 0 generic-cfl-nan?)
         (partial-folder plus fx+ + 0 (lambda (x) #f) 3)
         (partial-folder plus $fxx+ + 0 (lambda (x) #f))
         (r6rs-fixnum-partial-folder plus r6rs:fx+ fx+ + 0 (lambda (x) #f) 3)

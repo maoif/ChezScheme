@@ -1,9 +1,9 @@
 \documentclass{releasenotes}
 
-\thisversion{Version 10.4.0}
+\thisversion{Version 10.5.0}
 \thatversion{Version 8.4}
-\pubmonth{October}
-\pubyear{2025}
+\pubmonth{May}
+\pubyear{2026}
 
 \iflatex
 \usepackage{enumitem}
@@ -82,11 +82,16 @@ procedure) is given in parentheses.
 \item GNU Hurd
      \begin{itemizeC}
      \item x86, nonthreaded (i3gnu) and threaded (ti3gnu)
+     \item x86\_64, nonthreaded (a6gnu) and threaded (ta6gnu)
      \end{itemizeC}
 \item OpenSolaris
      \begin{itemizeC}
      \item x86, nonthreaded (i3s2) and threaded (ti3s2)
      \item x86\_64, nonthreaded (a6s2) and threaded (ta6s2)
+     \end{itemizeC}
+\item Haiku
+     \begin{itemizeC}
+     \item x86\_64, nonthreaded (a6hk) and threaded (ta6hk)
      \end{itemizeC}
 \item Other platforms
      \begin{itemizeC}
@@ -95,7 +100,7 @@ procedure) is given in parentheses.
 \end{itemize}
 
 {\thisversion} supports iOS natively to a limited extent. See
-\href[static]{section:ios-machine-types}{this section} for details.
+\href[static]{section:ios-machine-types}{``New machine types for iOS''} for details.
 
 This document contains three sections describing significant
 (1) \href[static]{section:functionality}{functionality changes},
@@ -115,6 +120,113 @@ Online versions of both books can be found at
 
 %-----------------------------------------------------------------------------
 \section{Functionality Changes}\label{section:functionality}
+
+\subsection{Anonymous fields in struct and union ftypes (10.5.0)}
+
+Struct and union ftypes now support anonymous fields, which mirror anonymous
+struct/union members as defined by C11 and later. Anonymous fields have arrow
+(\scheme{=>}) as their name and must themselves be of a struct, union, or bits
+ftype, whose fields are accessible directly from the containing ftype
+(recursively from the innermost named parent when nested).
+
+\subsection{Named Cost Center (10.4.0)}
+
+The procedure \scheme{make-cost-center} now
+accepts an optional argument \scheme{name}, which must be a symbol
+that identifies the object or \scheme{#f} for no name. The name is
+printed every time the cost center is printed.
+
+\subsection{Unicode 17.0.0 support (10.4.0)}
+
+The character sets, character classes, and word-breaking algorithms for character, string,
+and Unicode-related bytevector operations have now been updated to Unicode 17.0.0.
+
+The \scheme{char-indic-break-property} function was added to support decoding grapheme
+clusters with Indic conjuncts.
+
+\subsection{Foreign procedure \scheme{__errno}, \scheme{__alloc}, and \scheme{__disable_interrupts} (10.4.0)}
+
+The new \scheme{__errno} foreign-procedure convention makes each call
+return two values: the foreign procedure's direct result and the value
+of \scheme{errno} just after the foreign procedure returns. On
+Windows, the \scheme{current-errno-source} parameter selects the
+runtime C library whose \scheme{errno} is consulted, or instead of
+\scheme{__errno} use \scheme{__get_last_error} to get a result
+from \scheme{GetLastError} instead of \scheme{errno}.
+
+The new \scheme{__alloc} foreign-procedure convention modifies a preceding
+\scheme{__atomic} to allow a foreign procedure to call back into
+Scheme's C library routines to allocate Scheme values, such as
+allocating a string or pair.
+
+The new \scheme{__disable_interrupts} convention disables interupts
+during a foreign call or during the invocation of a foreign callable.
+A foreign call could be wrapped just as well with
+\scheme{with-interrupts-disabled}; the
+\scheme{__disable_interrupts} convention is intended more for foreign
+callables. For a callable, interrupts are disabled just before the
+first point that a callable would otherwise allow interrupt handling,
+and interrupts after reenabled after the last point where the callable
+would otherwise allow interrupt handling.
+
+\subsection{New machine types for GNU/Hurd and Haiku on x86\_64 (10.4.0)}
+
+GNU/Hurd on x86\_64 is now supported as machine types a6gnu (nonthreaded) and ta6gnu (threaded).
+
+Haiku on x86\_64 is now supported as machine types a6nk (nonthreaded) and ta6hk (threaded).
+
+\subsection{Interrupts and large-vector operations (10.4.0)}
+
+Vector and string operations such as \scheme{make-vector},
+\scheme{make-bytevector}, \scheme{make-string},
+\scheme{string-append}, and \scheme{vector-append}---whose run times
+depend on the length of the vector, bytevector, or string---were
+treated for the purposes of scheduling interrupt checking as
+essentially constant-time operations. As a result, garbage collections
+and timer expirations could be too infrequent. These operations still
+will not be interrupted during their execution, but they are treated
+as taking time proportional to their work for the purpose of
+scheduling interrupts.
+
+List operations such as \scheme{length}, \scheme{list-ref},
+\scheme{list-tail}, \scheme{append}, \scheme{reverse}, \scheme{assq},
+and \scheme{memq} suffer from the same problem only in unsafe mode.
+Direct use of these procedures in unsafe mode continues to be treated
+as essentialy constant-time.
+
+\subsection{Type recovery improvements (10.4.0)}
+
+The compiler now avoids moving predicates from tail position when they may raise an error,
+even if the result is known in case of a success; and it records must-error information
+that is inferred by type recovery so that it can be used by other optimization passes.
+
+The type recovery pass has improved support for \scheme{exact}, \scheme{inexact},
+and similar functions; improved support for \scheme{quotient},
+\scheme{remainder}, \scheme{div}, \scheme{mod}, and similar functions;
+and partial support for more numeric predicates,
+including \scheme{even?}, \scheme{odd?}, \scheme{positive?}, \scheme{negative?}
+and \scheme{real-valued?}.
+
+\subsection{Nongenerative ftype definitions (10.4.0)}
+
+The \scheme{define-ftype} form allows a \scheme{(nongenerative \var{uid})}
+clause, which is analogous to the same kind of clause in
+\scheme{define-record-type}. Supplying \var{uid} binds an ftype name
+as equivalent to any previous definition declaring the same \var{uid}, or
+it reports an error if the new definition is incompatible with a
+previous definition declaring \var{uid}.
+
+The \scheme{(& \var{ftype-name} \var{ftype-name})} argument or result
+type for a foreign procedure or callable now allows any pointer ftype
+for the second \var{ftype-name}, instead of allowing only the name
+\scheme{ftype-pointer} or the name \scheme{ftype-scheme-object-pointer}.
+
+The \scheme{make-ftype-scheme-object-pointer} form now supports an
+optional ftype to be used for the constructed pointer, analogous to
+specifying a pointer type for \scheme{make-ftype-pointer}. When constructing
+a pointer using \scheme{make-ftype-scheme-object-pointer}, the specified
+ftype must be a Scheme-object pointer type, while
+\scheme{make-ftype-pointer} now rejects such types.
 
 \subsection{In-place vector copying (10.3.0)}
 
@@ -137,9 +249,6 @@ The compiler now inlines more numeric predicates, in particular \scheme{real?},
 The type recovery pass has improved support for \scheme{cfl+} and similar functions,
 \scheme{integer?}, \scheme{zero?}, and similar predicates, and \scheme{+} and \scheme{-}.
 
-Avoid moving predicates from tail position when they may raise
-an error, in spite the result in known in case of a success.
-
 \subsection{Unicode 16.0.0 support (10.3.0)}
 
 The character sets, character classes, and word-breaking algorithms for character, string,
@@ -159,10 +268,10 @@ foreign functions may be compiled to a more efficient form, particularly if the 
 accepts or returns flonums that may be unboxed (in the sense of
 Section~\ref{sec:unbox-floats}).
 
-\subsection{Improved flonum unboxing for \scheme{fptr-ref} and \scheme{fptr-set!} (10.3.0)}
+\subsection{Improved flonum unboxing for \scheme{ftype-ref} and \scheme{ftype-set!} (10.3.0)}
 
 Unboxing optimizations (in the sense of Section~\ref{sec:unbox-floats}) are more
-consistently applied for \scheme{fptr-ref} and \scheme{fptr-set!} on \scheme{double} and
+consistently applied for \scheme{ftype-ref} and \scheme{ftype-set!} on \scheme{double} and
 \scheme{float} fields.
 
 \subsection{Atomic compare-and-set for pairs (10.3.0)}
@@ -2891,6 +3000,124 @@ in fasl files does not generally make sense.
 
 %-----------------------------------------------------------------------------
 \section{Bug Fixes}\label{section:bugfixes}
+
+\subsection{Error message fixes (10.5.0)}
+
+A bug in the error produced by \scheme{bytevector-ieee-double-native-set!}---when the last
+argument raises and error and the offset is out of bounds---has been fixed.
+
+When \scheme{log} is called with exact \scheme{1} as the second argument, the error is now
+reported in terms of \scheme{log} instead of a divide-by-zero error in \scheme{/}.
+
+\subsection{Repair allocation in \scheme{logtest} (10.4.1)}
+
+In Version 10.4.0, the \scheme{logtest} procedure could allocate incorrectly when given a
+mixture of fixnum and bignum arguments. The problem has been fixed by adding a missing
+\scheme{__alloc} annotation on the internal implementation.
+
+\subsection{Repair \scheme{__alloc} mode for ppc32 (10.4.1)}
+
+In Version 10.4.0 on ppc32, an \scheme{__atomic __alloc} foreign-procedure annotation was
+not handled correctly. The problem has been fixed by migrating the end-of-allocation
+pointer between a register and the thread context during an allocating foreign call.
+
+\subsection{Declare \scheme{Spopcount} in scheme.h (10.4.0)}
+
+A bug where the header file scheme.h refers to an undeclared \scheme{Spopcount} function
+has been fixed.
+
+\subsection{Eager port closing on error in \scheme{open-source-file} (10.4.0)}
+
+When \scheme{open-source-file} failed on a non-seekable device, the file descriptor port
+was kept open until the garbage collector eventually closed it. It now closes the port on
+error.
+
+\subsection{Signals in non-Scheme threads (10.4.0)}
+
+A bug in threaded Chez Scheme where some signals raised in non-Scheme threads could cause
+a segmentation fault in the signal handler has been fixed.
+
+\subsection{LZ4 library updated (10.4.0)}
+
+The LZ4 compression library was updated from v1.9.4 to v1.10.0.
+
+\subsection{Out-of-memory improvements for \scheme{expt}, \scheme{logbit0}, and \scheme{logbit1} (10.4.0)}
+
+A call to \scheme{expt} with an exact rational base and an integer exponent too large
+to allow the result to fit into a number representation now raises a catchable exception
+rather than exhausting memory and aborting the process. A call to
+\scheme{logbit0} with a large bit index and a non-negative second argument
+now returns the second argument directly, since the indicated bit is
+already clear, and \scheme{logbit1} with a large bit index and a
+negative second argument returns the second argument directly, since
+the indicated bit is already set.
+
+\subsection{Unicode Indic\_Conjunct\_Break support (10.4.0)}
+
+A bug where the grapheme cluster break algorithm neglected to consider the
+Indic\_Conjunct\_Break property available since Unicode 15 has been fixed.
+
+\subsection{Corrections and refinements to error reporting (10.4.0)}
+
+A bug in the error message produced when \scheme{list*} and \scheme{cons*} are called with
+zero arguments has been fixed.
+
+When \scheme{>} and \scheme{>=} are applied to two non-real arguments, the first argument
+is now reported as incorrect instead of the second. In general, when two or more arguments
+are invalid, there is no guarantee about which one is reported invalid.
+
+\subsection{Fix \scheme{remainder} and \scheme{modulo} for inexact/exact mixtures (10.4.0)}
+
+When \scheme{remainder} and \scheme{modulo} receive an inexact first
+argument and exact \scheme{1} or \scheme{-1} as a second argument, the
+result is now inexact \scheme{0.0} instead of exact \scheme{0}.
+
+When \scheme{remainder} and \scheme{modulo} receive an exact first
+argument and an inexact second argument, the computation is now
+performed as exact and then converted to inexact, instead of
+converting the first argument to inexact. The new approach ensures
+that the result is an inexact integer, and not sometimes
+\scheme{+nan.0}.
+
+\subsection{Type recovery repairs (10.4.0)}
+
+A bug that incorrectly determined the type of \scheme{(- x)} has been fixed.
+
+The compiler avoids transforming an expression like \scheme{(+ -inf.0 x)}, where
+\scheme{x} is known to be real, into \scheme{(fl+ -inf.0 (real->flonum x))}
+in case \scheme{x} is a bignum that would be converted into \scheme{+inf.0}.
+
+A bug that incorrectly determined the return type of \scheme{eq-hashtable-ref-cell}
+to be non-false has been fixed.
+
+\subsection{Fix 32-bit ARM floating-point dereference offset (10.4.0)}
+
+A bug that affects compilation on 32-bit ARM systems has been fixed. The bug was triggered
+when an offset to a floating-point field or array element was unaligned or too large to
+fit into the 12-bit encoding used for immediate offsets.
+
+\subsection{Fix x86\_64 foreign callables with in-register struct results (10.4.0)}
+
+A bug that affects compilation for foreign callables on x86\_64
+systems has been fixed. The bug was triggered when a callable returns
+a \scheme{struct} that is small enough to fit into return registers,
+and when arguments to the callable include floating-point values. In
+that case, arguments were not delivered correctly to the callable.
+
+\subsection{Generic \protect\scheme{+} misoptimized with \protect\scheme{+nan.0} and non-real arguments (10.4.0)}
+
+A bug in the source optimizer (cp0) treated flonum NaN as a bottom value
+too aggressively when partially folding \scheme{+}. In expressions such as
+\scheme{(+ x +nan.0)} where \scheme{x} can be non-real, optimization could
+discard non-real contributions. The fold now uses a complex-NaN predicate for
+the generic \scheme{+} case so non-real contributions are preserved.
+
+\subsection{Fix interaction of pbchunk and atomic foreign procedures (10.4.0)}
+
+A bug where the output of \scheme{pbchunk-convert-file} could be incorrect in the case of
+an inlined foreign call within certain blocks was fixed. The generated source was
+ill-formed in the case of a block that has too many entries and exits around unconvertible
+code to productively compile via C.
 
 \subsection{Exit with failure on error from boot file (10.3.0)}
 

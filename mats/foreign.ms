@@ -209,6 +209,14 @@
       (error? (load-shared-object 3))
     )
    ]
+  [(a6hk ta6hk)
+  (mat load-shared-object
+	(file-exists? foreign1.so)
+      (begin (load-shared-object foreign1.so) #t)
+      (begin (load-shared-object "libroot.so") #t)
+      (error? (load-shared-object 3))
+    )
+   ]
   [(i3fb ti3fb a6fb ta6fb)
    (mat load-shared-object
       (file-exists? foreign1.so)
@@ -317,6 +325,16 @@
 
 (mat foreign-procedure
    (procedure? (foreign-procedure "idiptr" (scheme-object) scheme-object))
+   (procedure? (foreign-procedure __errno "idiptr" (scheme-object) scheme-object))
+   (procedure? (meta-cond
+                [(windows?)
+                 (foreign-procedure __get_last_error "idiptr" (scheme-object) scheme-object)]
+                [else void]))
+   (error? (meta-cond
+            [(windows?)
+             (error #f "invalid foreign-procedure convention __get_last_error")]
+            [else
+             (lambda () (foreign-procedure __get_last_error "idiptr" (scheme-object) scheme-object))]))
    (error? (foreign-procedure "i do not exist" (scheme-object) scheme-object))
    (error? (begin (foreign-procedure "i do not exist" () scheme-object) 'q))
    (error? (if (foreign-procedure "i do not exist" () scheme-object) 'q 'q))
@@ -325,13 +343,22 @@
    (error? (if (foreign-procedure 'foo () scheme-object) 'q 'q))
 
    (error? (lambda () (foreign-procedure __bad_conv "foo" () scheme-object)))
+   (error? (lambda () (foreign-procedure __collect_safe __atomic "foo" () scheme-object)))
    (error? (lambda () (foreign-procedure __atomic __collect_safe "foo" () scheme-object)))
+   (error? (meta-cond
+            [(windows?) (lambda () (foreign-procedure __errno __get_last_error "foo" () scheme-object))]
+            [else (error #f "conflicting foreign-procedure convention __get_last_error")]))
+   (error? (meta-cond
+            [(windows?) (lambda () (foreign-procedure __get_last_error __errno "foo" () scheme-object))]
+            [else (error #f "conflicting foreign-procedure convention __errno")]))
+   (error? (lambda () (foreign-procedure __alloc "foo" () scheme-object)))
 
    (eq? 'foo ((foreign-procedure "idiptr" (scheme-object) scheme-object) 'foo))
 
    (procedure? (foreign-procedure __atomic "idiptr" (scheme-object) scheme-object))
    (error? (foreign-procedure __atomic "i do not exist" (scheme-object) scheme-object))
    (eq? 'foo ((foreign-procedure __atomic "idiptr" (scheme-object) scheme-object) 'foo))
+   (eq? 'foo ((foreign-procedure __atomic __alloc "idiptr" (scheme-object) scheme-object) 'foo))
 
    (parameterize ([current-eval interpret])
        (eq? 'foo ((foreign-procedure "idiptr" (scheme-object) scheme-object) 'foo)))
@@ -739,6 +766,7 @@
     (define rt-int (foreign-procedure "rt_int" (iptr) ptr))
     (define rt-int32 (foreign-procedure "rt_int32" (integer-32) ptr))
     (define rt-int64 (foreign-procedure "rt_int64" (integer-64) ptr))
+    (define rt-int64/atomic (foreign-procedure __atomic __alloc "rt_int64" (integer-64) ptr))
     (define rt-uint (foreign-procedure "rt_uint" (uptr) ptr))
     (define rt-uint32 (foreign-procedure "rt_uint32" (unsigned-32) ptr))
     (define rt-uint64 (foreign-procedure "rt_uint64" (unsigned-64) ptr))
@@ -780,6 +808,12 @@
   (check #f (rt-int64 (- (ash 1 63))))
   (let ([n (+ -1 (ash 1 63))])
     (check n (rt-int64 n)))
+  (let loop ([i 1000])
+     (or (fx= i 0)
+         (and (check #f (rt-int64/atomic (ash 1 63)))
+              (loop (sub1 i)))))
+  (let ([n (+ -1 (ash 1 63))])
+    (check n (rt-int64/atomic n)))
 
   (check 0 (rt-uint 0))
   (check #f (rt-uint -1))
@@ -1693,7 +1727,7 @@
       (foreign-procedure "ufoo64a" (unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64)
         unsigned-64))
     (define ufoo64b
-      (foreign-procedure "ufoo64b" (integer-32 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64)
+      (foreign-procedure "ufoo64b" (unsigned-32 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64 unsigned-64)
         unsigned-64))
     (define test-ufoo
       (lambda (foo x a b c d e f g)
@@ -2369,6 +2403,97 @@
 
   (ftype-pointer-null? (void*->obj-void* (make-ftype-pointer integer-8 0) 0))
   (ftype-pointer-null? (void*->obj-void* (make-ftype-pointer integer-8 -1) 1))
+
+  (begin
+    (define-ftype IUI (struct [a int] [b unsigned-int] [c int]))
+    (define-ftype unsigned-int-ptr (* unsigned-int))
+    (define get-int-uint-int (foreign-procedure "get_int_uint_int" (int unsigned-int int) (& IUI)))
+    (define get-int-uint-int-as-ptr (foreign-procedure "get_int_uint_int" (int unsigned-int int) (& IUI ftype-pointer)))
+    (define get-int-uint-int-as-uint* (foreign-procedure "get_int_uint_int" (int unsigned-int int) (& IUI unsigned-int-ptr)))
+    (define-ftype iui-callback (function ((& IUI)) int))
+    (define-ftype iui-callback-as-ptr (function ((& IUI ftype-pointer)) int))
+    (define-ftype iui-callback-as-uint* (function ((& IUI unsigned-int-ptr)) int))
+    (define call-with-int-uint-int (foreign-procedure "call_with_int_uint_int" ((* iui-callback) int unsigned-int int) int))
+    (define call-with-int-uint-int-as-ptr (foreign-procedure "call_with_int_uint_int" ((* iui-callback-as-ptr) int unsigned-int int) int))
+    (define call-with-int-uint-int-as-uint* (foreign-procedure "call_with_int_uint_int" ((* iui-callback-as-uint*) int unsigned-int int) int))
+    #t)
+
+  (let* ([addr (foreign-alloc (ftype-sizeof IUI))]
+         [p (make-ftype-pointer IUI addr)])
+    (get-int-uint-int p -10 3 100)
+    (and (= -9 (ftype-ref IUI (a) p))
+         (= -9 (ftype-ref int () p))
+         (= 6 (ftype-ref IUI (b) p))
+         (= 99 (ftype-ref IUI (c) p))
+         (begin (foreign-free addr) #t)))
+
+  (let* ([addr (foreign-alloc (ftype-sizeof IUI))]
+         [p (make-ftype-pointer int addr)])
+    (get-int-uint-int-as-ptr p -10 3 100)
+    (and (= -9 (ftype-ref int () p))
+         (= 6 (ftype-any-ref unsigned-int () p (ftype-sizeof int)))
+         (= 99 (ftype-ref int () p 2))
+         (begin (foreign-free addr) #t)))
+
+  (let* ([addr (foreign-alloc (ftype-sizeof IUI))]
+         [p (make-ftype-pointer unsigned-int addr)])
+    (get-int-uint-int-as-ptr p -10 3 100)
+    (and (= 4294967287 (ftype-ref unsigned-int () p))
+         (= 6 (ftype-ref unsigned-int () p 1))
+         (= 99 (ftype-ref unsigned-int () p 2))
+         (begin (foreign-free addr) #t)))
+
+  (let* ([bv (make-bytevector (ftype-sizeof IUI))]
+         [p (make-ftype-scheme-object-pointer bv)])
+    (get-int-uint-int-as-ptr p -10 3 100)
+    (and (= -9 (bytevector-s32-native-ref bv 0))
+         (= 6 (bytevector-s32-native-ref bv 4))
+         (= 99 (bytevector-s32-native-ref bv 8))))
+
+  (error? (let* ([addr (foreign-alloc (ftype-sizeof IUI))]
+                 [p (make-ftype-pointer IUI addr)])
+            (dynamic-wind
+             void
+             (lambda () (get-int-uint-int-as-uint* p -10 3 100))
+             (lambda () (foreign-free addr)))))
+
+  (error? (let* ([addr (foreign-alloc (ftype-sizeof IUI))]
+                 [p (make-ftype-pointer int addr)])
+            (dynamic-wind
+             void
+             (lambda () (get-int-uint-int p -10 3 100))
+             (lambda () (foreign-free addr)))))
+
+  (let* ([cb (lambda (p) ; IUI pointer
+               (+ (ftype-ref IUI (a) p)
+                  (ftype-ref int () p)
+                  (ftype-ref IUI (b) p)
+                  (ftype-ref IUI (c) p)))]
+         [p (make-ftype-pointer iui-callback cb)])
+    (and (= 87 (call-with-int-uint-int p -10 3 100))
+         (begin
+           (unlock-object (foreign-callable-code-object (ftype-pointer-address p)))
+           #t)))
+
+  (let* ([cb (lambda (p) ; generic pointer
+               (+ (ftype-any-ref int () p)
+                  (ftype-any-ref int () p (ftype-sizeof int))
+                  (ftype-any-ref int () p (* 2 (ftype-sizeof int)))))]
+         [p (make-ftype-pointer iui-callback-as-ptr cb)])
+    (and (= 96 (call-with-int-uint-int-as-ptr p -10 3 100))
+         (begin
+           (unlock-object (foreign-callable-code-object (ftype-pointer-address p)))
+           #t)))
+
+  (let* ([cb (lambda (p) ; unsigned-int pointer
+               (+ (quotient (ftype-ref unsigned-int () p) 16)
+                  (ftype-ref unsigned-int () p 1)
+                  (ftype-ref unsigned-int () p 2)))]
+         [p (make-ftype-pointer iui-callback-as-uint* cb)])
+    (and (= (+ (quotient 4294967287 16) 6 99) (call-with-int-uint-int-as-uint* p -10 3 100))
+         (begin
+           (unlock-object (foreign-callable-code-object (ftype-pointer-address p)))
+           #t)))
 
   (begin 
     (define-ftype A (struct [x uptr] [y uptr]))
@@ -3255,6 +3380,8 @@
          '(load-shared-object "libc.so")]
         [(i3le ti3le a6le ta6le arm32le tarm32le arm64le tarm64le ppc32le tppc32le rv64le trv64le la64le tla64le)
          '(load-shared-object "libc.so.6")]
+	[(a6hk ta6hk)
+	 '(load-shared-object "libroot.so")]
         [(i3fb ti3fb a6fb ta6fb)
          '(load-shared-object "libc.so.7")]
         [(i3nt ti3nt a6nt ta6nt arm64nt tarm64nt)
@@ -3363,7 +3490,7 @@
     (define-ftype i64 integer-64)
     (define-syntax check*
       (syntax-rules ()
-        [(_ (conv ...) T s [vi ...] [T-ref ...] [T-set! ...])
+        [(_ foreign-procedure (conv ...) T s [vi ...] [T-ref ...] [T-set! ...])
          (let ()
            (define-ftype callback (function conv ... ((& T)) double))
            (define-ftype callback-two (function conv ... ((& T) (& T)) double))
@@ -3469,11 +3596,34 @@
                        (begin
                          (free_at_boundary (ftype-pointer-address a))
                          #t)))))]))
+    (define-syntax foreign-procedure/discard-errno
+      (lambda (stx)
+        (syntax-case stx ()
+          [(_ a ...)
+           #'(let ([f (foreign-procedure a ...)])
+               (lambda args
+                 (call-with-values
+                  (lambda () (apply f args))
+                  (lambda (v errno)
+                    (unless (and (integer? errno) (exact? errno)) (errorf 'foreign "not a valid errno result ~s" errno))
+                    v))))])))
+    ;; used to get broad coverage, on average, without inflating test times too much
+    (define-syntax randomly
+      (lambda (stx)
+        (syntax-case stx ()
+          [(_ e)
+           (if (< (random 1.0) 0.1)
+               #'e
+               #'#t)])))
     (define-syntax check*t
       (syntax-rules ()
         [(_ arg ...)
-         (and (check* () arg ...)
-              (check* (__collect_safe) arg ...))]))
+         (and (check* foreign-procedure () arg ...)
+              (check* foreign-procedure (__collect_safe) arg ...)
+              (randomly
+               (check* foreign-procedure/discard-errno (__errno) arg ...))
+              (randomly
+               (check* foreign-procedure/discard-errno (__collect_safe __errno) arg ...)))]))
     (define-syntax check-n
       (syntax-rules ()
         [(_ [ni ti vi] ...)
@@ -3667,6 +3817,28 @@
           (let ([v (cb_send cb)])
             (and (= v 112.25)
                  (loop (sub1 i))))]))))
+
+  (let ()
+    (define-ftype intfloat (struct
+                             [i int]
+                             [f float]))
+    (define-ftype callback (function (int float) (& intfloat)))
+    (define intfloat_sum_built
+      (foreign-procedure "intfloat_sum_built"
+                         ((* callback)) double))
+    (let ([cb (make-ftype-pointer
+               callback
+               (lambda (r i f)
+                 (ftype-set! intfloat (i) r i)
+                 (ftype-set! intfloat (f) r f)))])
+      (and (equal? (intfloat_sum_built cb)
+                   110.0)
+           (begin
+             (unlock-object
+              (foreign-callable-code-object
+               (ftype-pointer-address cb)))
+             #t))))
+
   )
 
 (mat collect-safe
@@ -3812,6 +3984,91 @@
            (begin
              (unlock-object callable)
              (< (maximum-memory-bytes) (* 1.2 old-max)))))))
+  )
+
+(mat save-errno
+  (begin
+    (define set-errno-value
+      (foreign-procedure __errno "set_errno_value" (int) int))
+    (define set-errno-value/collect-safe
+      (foreign-procedure __errno __collect_safe "set_errno_value" (int) int))
+    (define set-last-error-value
+      (meta-cond
+       [(windows?)
+        (foreign-procedure __get_last_error "set_last_error_value" (int) int)]
+       [else
+        set-errno-value]))
+    (define set-last-error-value/collect-safe
+      (meta-cond
+       [(windows?)
+        (foreign-procedure __get_last_error __collect_safe "set_last_error_value" (int) int)]
+       [else
+        set-errno-value/collect-safe]))
+    #t)
+  (equal? (call-with-values (lambda () (set-errno-value 123)) list)
+          (list 124 123))
+  (equal? (call-with-values (lambda () (set-errno-value/collect-safe 125)) list)
+          (list 126 125))
+  (equal? (call-with-values (lambda () (set-last-error-value 127)) list)
+          (list 128 127))
+  (equal? (call-with-values (lambda () (set-last-error-value/collect-safe 129)) list)
+          (list 130 129))
+)
+
+(mat disable-interrupts
+  (begin
+    (define (check-foreign-call-interrupt-disable disable-on-call? disable-on-callback?)
+      (let ([old-timer-handler (timer-interrupt-handler)]
+            [old-collect-handler (collect-request-handler)])
+        (define-ftype int->int (function (int) int))
+        (define-ftype int->int* (function __disable_interrupts (int) int))
+        (define hit 0)
+        (define call (if disable-on-callback?
+                         (foreign-procedure "call_for_interrupt_test" ((* int->int*) int) int)
+                         (foreign-procedure "call_for_interrupt_test" ((* int->int) int) int)))
+        (define call* (if disable-on-callback?
+                          (foreign-procedure __disable_interrupts "call_for_interrupt_test" ((* int->int*) int) int)
+                          (foreign-procedure __disable_interrupts "call_for_interrupt_test" ((* int->int) int) int)))
+        (define in? (foreign-procedure "is_in_callback_for_interrupt_test" () boolean))
+
+        (define (callback x)
+          (+ 1 (string-length (make-string x))))
+
+        (define callback-ptr (if disable-on-callback?
+                                 (make-ftype-pointer int->int* callback)
+                                 (make-ftype-pointer int->int callback)))
+
+        (timer-interrupt-handler (lambda ()
+                                   (set! hit (add1 hit))
+                                   (when (in?) (error 'timeout "inside!"))
+                                   (set-timer (add1 (random 100)))))
+        (collect-request-handler (lambda ()
+                                   (when (in?) (error 'timeout "inside for GC!"))
+                                   (old-collect-handler)))
+
+        (set-timer (add1 (random 100)))
+        (let loop ([i 10000])
+          (unless (zero? i)
+            (unless (eqv? (+ i 1)
+                          (if disable-on-call?
+                              (call* callback-ptr i)
+                              (call callback-ptr i)))
+              (error 'call "bad result"))
+            (loop (sub1 i))))
+
+        (set-timer 0)
+        (timer-interrupt-handler old-timer-handler)
+        (collect-request-handler old-collect-handler)
+
+        (unlock-object
+         (foreign-callable-code-object
+          (ftype-pointer-address callback-ptr)))
+
+        (positive? hit)))
+    #t)
+  (check-foreign-call-interrupt-disable #t #f)
+  (check-foreign-call-interrupt-disable #f #t)
+  (check-foreign-call-interrupt-disable #t #t)
 )
 
 (machine-case

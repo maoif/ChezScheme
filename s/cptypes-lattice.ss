@@ -63,17 +63,23 @@
    symbol-pred
    maybe-symbol-pred
    fixnum-pred
+   fixnum*-pred    ; fixnums except 0
    bignum-pred
    exact-integer-pred
    flonum-pred
    real-pred
    number-pred
+   zero-pred
    flzero-pred
    flinteger-pred
+   bignum-or-ratnum-pred
    exact-real-pred
    exact-pred
    inexact-pred
    integer-pred
+   integer*-pred   ; integers except 0, 0.0 and -0.0
+   subset-of-rational-pred
+   subset-of-complex-rational-pred
    $fixmediate-pred
    $list-pred ; immutable lists
    list-pair-pred
@@ -563,29 +569,37 @@
       [sub-symbol (cons 'bottom symbol-pred)]
       [maybe-sub-symbol (cons false-rec maybe-symbol-pred)]
 
-      [fxzero fxzero-rec]
       [fixnum fixnum-pred]
-      [(sub-fixnum bit length sub-length ufixnum sub-ufixnum pfixnum index sub-index u8 s8 u8/s8) (cons 'bottom fixnum-pred)]
+      [(sub-fixnum sub-length pfixnum nfixnum sub-ufixnum sub-index) (cons 'bottom fixnum-pred)]
+      [(bit length ufixnum dfixnum index u8 s8 u8/s8) (cons 'fxzero-rec fixnum-pred)]
       [maybe-fixnum maybe-fixnum-pred]
       [maybe-ufixnum (cons false-rec maybe-fixnum-pred)]
       [(eof/length eof/u8) (cons eof-rec eof/fixnum-pred)]
       [bignum bignum-pred]
+      [pbignum (cons 'bottom bignum-pred)]
       [(exact-integer sint) exact-integer-pred]
-      [(uint sub-uint nzuint exact-uinteger sub-sint) (cons 'bottom exact-integer-pred)]
+      [(uint sub-uint pint exact-uinteger sub-sint) (cons 'bottom exact-integer-pred)]
       [maybe-uint (cons false-rec maybe-exact-integer-pred)]
       [ratnum ratnum-pred]
       [flonum flonum-pred]
-      [sub-flonum (cons 'bottom flonum-pred)]
+      [(sub-flonum pflonum nflonum) (cons 'bottom flonum-pred)]
+      [(uflonum dflonum) (cons flzero-pred flonum-pred)]
       [maybe-flonum maybe-flonum-pred]
       [real real-pred]
-      [sub-real (cons 'bottom real-pred)]
-      [rational (cons (predicate-union exact-real-pred flinteger-pred)
-                      real-pred)]
+      [(sub-real preal nreal) (cons 'bottom real-pred)]
+      [(ureal dreal) (cons real-zero-pred real-pred)]
+      [real-valued (cons (predicate-union real-pred inexact-complex-zero-pred)
+                         (predicate-union real-pred inexact-complex-pred))]
+      [rational (cons subset-of-rational-pred real-pred)]
       [flrational (cons flinteger-pred flonum-pred)]
+      [rational-valued (cons (predicate-union subset-of-rational-pred inexact-complex-zero-pred)
+                             (predicate-union real-pred inexact-complex-pred))]
       [(infinite nan) (cons 'bottom flonum**-pred)]
       [integer integer-pred]
       [(uinteger sub-integer) (cons 'bottom integer-pred)]
       [flinteger flinteger-pred]
+      [integer-valued (cons (predicate-union integer-pred inexact-complex-zero-pred)
+                            (predicate-union integer-pred inexact-complex-pred))] 
       [(cflonum inexact-number) inexact-pred]
       [exact-real exact-real-pred]
       [exact-number exact-pred]
@@ -594,8 +608,17 @@
       [number number-pred]
       [sub-number (cons 'bottom number-pred)]
       [maybe-number maybe-number-pred]
+
       [zero zero-pred]
+      [fxzero fxzero-rec]
       [flzero flzero-pred]
+      [even (cons real-zero-pred integer-pred)]
+      [fxeven (cons fxzero-rec exact-integer-pred)]
+      [fleven (cons flzero-pred flinteger-pred)]
+      [odd (cons 'bottom integer*-pred)]
+      [fxodd (cons 'bottom exact-integer*-pred)]
+      [flodd (cons 'bottom flinteger*-pred)]
+
       [port 'port]
       [(textual-input-port textual-output-port textual-port
         binary-input-port binary-output-port binary-port
@@ -1468,7 +1491,9 @@
   (define ptr-pred (make-pred-or singleton-pred multiplet-pred 'normalptr 'exact-integer* '$record))
   (define true-pred (make-pred-or true-singleton-pred multiplet-pred 'normalptr 'exact-integer* '$record))
   (define immediate-pred (predicate-union immediate*-pred char-pred))
+  (define fixnum*-pred 'fixnum*)
   (define fixnum-pred (predicate-union fxzero-rec 'fixnum*))
+  (define exact-integer*-pred 'exact-integer*)
   (define exact-integer-pred (predicate-union fxzero-rec 'exact-integer*))
   (define bignum-pred 'bignum)
   (define $fixmediate-pred (predicate-union immediate-pred fixnum-pred))
@@ -1476,15 +1501,18 @@
   (define maybe-pair-pred (maybe pair-pred))
   (define null-or-pair-pred (predicate-union null-rec pair-pred))
   (define $list-pred (predicate-union null-rec list-pair-pred))
+
   (define maybe-fixnum-pred (maybe fixnum-pred))
   (define eof/fixnum-pred (eof/ fixnum-pred))
   (define maybe-exact-integer-pred (maybe exact-integer-pred))
   (define flonum-pred (predicate-union flonum*-pred flzero-pred))
   (define maybe-flonum-pred (maybe flonum-pred))
   (define flinteger-pred (predicate-union flinteger*-pred flzero-pred))
+  (define integer*-pred (predicate-union flinteger*-pred exact-integer*-pred))
   (define integer-pred (predicate-union flinteger-pred exact-integer-pred))
   (define exact-pred (predicate-union exact*-pred exact-integer-pred))
   (define exact-real-pred (predicate-union ratnum-pred exact-integer-pred))
+  (define bignum-or-ratnum-pred (predicate-union bignum-pred ratnum-pred))
   (define inexact-pred (predicate-union inexact*-pred flzero-pred))
   (define real-pred (predicate-union (predicate-union real*-pred flzero-pred)
                                      exact-integer-pred))
@@ -1493,6 +1521,11 @@
   (define maybe-number-pred (maybe number-pred))
   (define zero-pred (predicate-union (predicate-union flzero-pred inexact-complex-zero-pred)
                                      fxzero-rec))
+  (define subset-of-rational-pred (predicate-union exact-real-pred flinteger-pred))
+  (define subset-of-complex-rational-pred (predicate-union subset-of-rational-pred inexact-complex-zero-pred))
+
+  (define real-zero-pred (predicate-union fxzero-rec flzero-pred))
+
   (define maybe-symbol-pred (maybe symbol-pred))
   (define maybe-procedure-pred (maybe 'procedure))
   (define vector-pred (predicate-union null-vector-pred vector*-pred))

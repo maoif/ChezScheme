@@ -357,7 +357,7 @@
 ;; ---------------------------------------------------------------------
 ;; Version and machine types:
 
-(define-constant scheme-version #x0a040001)
+(define-constant scheme-version #x0a050001)
 
 (define-syntax define-machine-types
   (lambda (x)
@@ -389,6 +389,7 @@
   i3s2      ti3s2
   i3qnx     ti3qnx
   i3gnu     ti3gnu
+  a6gnu     ta6gnu
   a6nt      ta6nt
   a6osx     ta6osx
   a6ios     ta6ios
@@ -418,6 +419,7 @@
   rv64ob    trv64ob
   rv64nb    trv64nb
   la64le    tla64le
+  a6hk      ta6hk
 )
 
 (include "machine.def")
@@ -903,14 +905,15 @@
 
 ;; Flags that matter to the GC must apply only to static-generation
 ;; objects, and they must not overlap with `forward-marker`
-(define-constant code-flag-system           #b00000001)
-(define-constant code-flag-continuation     #b00000010)
-(define-constant code-flag-template         #b00000100)
-(define-constant code-flag-guardian         #b00001000)
-(define-constant code-flag-mutable-closure  #b00010000)
-(define-constant code-flag-arity-in-closure #b00100000)
-(define-constant code-flag-single-valued    #b01000000)
-(define-constant code-flag-lift-barrier     #b10000000)
+(define-constant code-flag-system            #b000000001)
+(define-constant code-flag-continuation      #b000000010)
+(define-constant code-flag-template          #b000000100)
+(define-constant code-flag-guardian          #b000001000)
+(define-constant code-flag-mutable-closure   #b000010000)
+(define-constant code-flag-arity-in-closure  #b000100000)
+(define-constant code-flag-single-valued     #b001000000)
+(define-constant code-flag-lift-barrier      #b010000000)
+(define-constant code-flag-no-interrupt-trap #b100000000)
 
 (define-constant fixnum-bits
   (case (constant ptr-bits)
@@ -1629,6 +1632,7 @@
    [ptr current-input]
    [ptr current-output]
    [ptr current-error]
+   [ptr current-errno-source]
    [ptr block-counter]
    [ptr sfd]
    [ptr current-mso]
@@ -2116,6 +2120,8 @@
   (expt 2 (+ 20 (constant log2-ptr-bytes))))
 (define-constant default-heap-reserve-ratio 1.0)
 (define-constant default-max-nonstatic-generation 4)
+
+(define-constant fuel-word-count-shift 2)
 
 (constant-case address-bits
   [(32)
@@ -2984,7 +2990,7 @@
      (bytevector=? #f 2 #f #f)
      (bytevector-ieee-double-native-ref #f 2 #t #t)
      (bytevector-ieee-double-native-set! #f 2 #t #t)
-     (real->flonum #f 2 #f #t)
+     ($real->flonum #f 2 #f #t)
      (exact? #f 1 #t #t)
      (inexact? #f 1 #t #t)
      (unsafe-port-eof? #f 1 #f #t)
@@ -3132,6 +3138,8 @@
      activate-thread
      deactivate-thread
      unactivate-thread
+     save-errno
+     save-last-error
      handle-values-error
      handle-mvlet-error
      handle-arg-error

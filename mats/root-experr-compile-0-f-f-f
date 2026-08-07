@@ -1030,6 +1030,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat <: "<: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat <: "<: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat <: "<: 3.4+0.0i is not a real number".
+5_3.mo:Expected error in mat <: "<: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat <: "<: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat <: "<: 2+1i is not a real number".
 5_3.mo:Expected error in mat <: "<: 3+1i is not a real number".
@@ -1050,6 +1051,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat <=: "<=: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat <=: "<=: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat <=: "<=: 3.4+0.0i is not a real number".
+5_3.mo:Expected error in mat <=: "<=: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat <=: "<=: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat <=: "<=: 2+1i is not a real number".
 5_3.mo:Expected error in mat <=: "<=: 3+1i is not a real number".
@@ -1070,6 +1072,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat >: ">: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat >: ">: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat >: ">: 3.4+0.0i is not a real number".
+5_3.mo:Expected error in mat >: ">: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat >: ">: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat >: ">: 2+1i is not a real number".
 5_3.mo:Expected error in mat >: ">: 3+1i is not a real number".
@@ -1090,6 +1093,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat >=: ">=: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat >=: ">=: 3.4+0.0i is not a real number".
 5_3.mo:Expected error in mat >=: ">=: 3.4+0.0i is not a real number".
+5_3.mo:Expected error in mat >=: ">=: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat >=: ">=: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat >=: ">=: 2+1i is not a real number".
 5_3.mo:Expected error in mat >=: ">=: 3+1i is not a real number".
@@ -1111,6 +1115,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat r6rs:<: "<: a is not a real number".
 5_3.mo:Expected error in mat r6rs:<: "<: a is not a real number".
 5_3.mo:Expected error in mat r6rs:<: "<: a is not a real number".
+5_3.mo:Expected error in mat r6rs:<: "<: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:<: "<: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:<: "<: 2+1i is not a real number".
 5_3.mo:Expected error in mat r6rs:<: "<: 3+1i is not a real number".
@@ -1123,6 +1128,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat r6rs:<=: "<=: a is not a real number".
 5_3.mo:Expected error in mat r6rs:<=: "<=: a is not a real number".
 5_3.mo:Expected error in mat r6rs:<=: "<=: a is not a real number".
+5_3.mo:Expected error in mat r6rs:<=: "<=: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:<=: "<=: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:<=: "<=: 2+1i is not a real number".
 5_3.mo:Expected error in mat r6rs:<=: "<=: 3+1i is not a real number".
@@ -1135,6 +1141,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat r6rs:>: ">: a is not a real number".
 5_3.mo:Expected error in mat r6rs:>: ">: a is not a real number".
 5_3.mo:Expected error in mat r6rs:>: ">: a is not a real number".
+5_3.mo:Expected error in mat r6rs:>: ">: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:>: ">: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:>: ">: 2+1i is not a real number".
 5_3.mo:Expected error in mat r6rs:>: ">: 3+1i is not a real number".
@@ -1147,6 +1154,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat r6rs:>=: ">=: a is not a real number".
 5_3.mo:Expected error in mat r6rs:>=: ">=: a is not a real number".
 5_3.mo:Expected error in mat r6rs:>=: ">=: a is not a real number".
+5_3.mo:Expected error in mat r6rs:>=: ">=: 1.0+0.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:>=: ">=: 2.0+1.0i is not a real number".
 5_3.mo:Expected error in mat r6rs:>=: ">=: 2+1i is not a real number".
 5_3.mo:Expected error in mat r6rs:>=: ">=: 3+1i is not a real number".
@@ -1402,6 +1410,10 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat expt: "expt: undefined for values 0 and +nan.0+3.0i".
 5_3.mo:Expected error in mat expt: "expt: undefined for values 0 and 0+3i".
 5_3.mo:Expected error in mat expt: "expt: undefined for values 0 and -1/2".
+5_3.mo:Expected error in mat expt: "expt: out of memory".
+5_3.mo:Expected error in mat expt: "expt: out of memory".
+5_3.mo:Expected error in mat expt: "expt: out of memory".
+5_3.mo:Expected error in mat expt: "expt: out of memory".
 5_3.mo:Expected error in mat expt-mod: "incorrect argument count in call (expt-mod)".
 5_3.mo:Expected error in mat expt-mod: "incorrect argument count in call (expt-mod 5)".
 5_3.mo:Expected error in mat expt-mod: "incorrect argument count in call (expt-mod 4 5)".
@@ -1504,6 +1516,7 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_3.mo:Expected error in mat log: "incorrect argument count in call (log)".
 5_3.mo:Expected error in mat log: "log: a is not a number".
 5_3.mo:Expected error in mat log: "log: undefined for 0".
+5_3.mo:Expected error in mat log: "log: undefined for values 5 and 1".
 5_3.mo:Expected error in mat sin: "incorrect argument count in call (sin)".
 5_3.mo:Expected error in mat sin: "incorrect argument count in call (sin 3 4)".
 5_3.mo:Expected error in mat sin: "sin: a is not a number".
@@ -2080,6 +2093,9 @@ primvars.mo:Expected error in mat trace-output-port: "trace-output-port: #<input
 5_4.mo:Expected error in mat char-extended-pictographic?: "incorrect argument count in call (char-extended-pictographic?)".
 5_4.mo:Expected error in mat char-extended-pictographic?: "incorrect argument count in call (char-extended-pictographic? #\a #\b)".
 5_4.mo:Expected error in mat char-extended-pictographic?: "char-extended-pictographic?: a is not a character".
+5_4.mo:Expected error in mat char-indic-break-property: "incorrect argument count in call (char-indic-break-property)".
+5_4.mo:Expected error in mat char-indic-break-property: "incorrect argument count in call (char-indic-break-property #\a #\b)".
+5_4.mo:Expected error in mat char-indic-break-property: "char-indic-break-property: a is not a character".
 5_4.mo:Expected error in mat char-upcase: "incorrect argument count in call (char-upcase)".
 5_4.mo:Expected error in mat char-upcase: "incorrect argument count in call (char-upcase #\a #\b)".
 5_4.mo:Expected error in mat char-upcase: "char-upcase: a is not a character".
@@ -4126,13 +4142,14 @@ misc.mo:Expected error in mat $fasl-file-equal?: "$fasl-file-equal?: failed for 
 misc.mo:Expected error in mat $fasl-file-equal?: "$fasl-file-equal?: failed for probably-does-not-exist: no such file or directory".
 misc.mo:Expected error in mat $fasl-file-equal?: "$fasl-file-equal?: failed for probably-does-not-exist: no such file or directory".
 misc.mo:Expected error in mat $fasl-file-equal?: "$fasl-file-equal?: record comparison failed while comparing testfile-fatfib1.so and testfile-fatfib3.so within fasl entry 4".
-misc.mo:Expected error in mat cost-center: "incorrect argument count in call (make-cost-center (quote foo))".
+misc.mo:Expected error in mat cost-center: "incorrect argument count in call (make-cost-center (quote foo) (quote bar))".
 misc.mo:Expected error in mat cost-center: "with-cost-center: foo is not a cost center".
 misc.mo:Expected error in mat cost-center: "with-cost-center: bar is not a procedure".
 misc.mo:Expected error in mat cost-center: "cost-center-instruction-count: 5 is not a cost center".
 misc.mo:Expected error in mat cost-center: "cost-center-allocation-count: "test" is not a cost center".
 misc.mo:Expected error in mat cost-center: "cost-center-time: 4.7 is not a cost center".
 misc.mo:Expected error in mat cost-center: "reset-cost-center!: #\c is not a cost center".
+misc.mo:Expected error in mat cost-center: "cost-center-name: "test" is not a cost center".
 misc.mo:Expected error in mat (argcnt eval-error): "incorrect argument count in call (car) at line 3, char 38 of testfile.ss".
 misc.mo:Expected error in mat (argcnt eval-error): "incorrect argument count in call (car (quote (a b)) (quote (c d))) at line 3, char 38 of testfile.ss".
 misc.mo:Expected error in mat (argcnt eval-error): "incorrect argument count in call (g 7) at line 3, char 47 of testfile.ss".
@@ -4702,8 +4719,8 @@ cp0.mo:Expected error in mat expand/optimize-output: "expand/optimize-output: #<
 6.mo:Expected error in mat fasl: "fasl-write: 10 is not #f or a procedure".
 6.mo:Expected error in mat fasl: "fasl-read: not a vector #f".
 6.mo:Expected error in mat fasl: "fasl-read: not a vector 10".
-6.mo:Expected error in mat fasl: "incompatible external vector length 0, expected 1".
-6.mo:Expected error in mat fasl: "incompatible external vector length 1, expected 2".
+6.mo:Expected error in mat fasl: "incompatible fasl graph external vector length 0 (expected 1) found in bytevector".
+6.mo:Expected error in mat fasl: "incompatible fasl graph external vector length 1 (expected 2) found in bytevector".
 6.mo:Expected warning in mat cp1in-verify-format-warnings: "compile: too few arguments for control string "~a~~~s" in call to format".
 6.mo:Expected warning in mat cp1in-verify-format-warnings: "compile: too many arguments for control string "~a~a~a~s" in call to format".
 6.mo:Expected warning in mat cp1in-verify-format-warnings: "compile: too few arguments for control string "~a~~~s" in call to format at line 1, char 28 of testfile.ss".
@@ -10376,6 +10393,7 @@ cfl.mo:Expected error in mat cfl=: "cfl=: a is not a cflonum".
 cfl.mo:Expected error in mat cfl=: "cfl=: a is not a cflonum".
 cfl.mo:Expected error in mat cfl=: "incorrect argument count in call (cfl=)".
 foreign.mo:Expected error in mat load-shared-object: "load-shared-object: invalid path 3".
+foreign.mo:Expected error in mat foreign-procedure: "invalid foreign-procedure convention __get_last_error".
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: no entry for "i do not exist"".
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: no entry for "i do not exist"".
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: no entry for "i do not exist"".
@@ -10383,7 +10401,11 @@ foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: invalid 
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: invalid foreign procedure handle foo".
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: invalid foreign procedure handle foo".
 foreign.mo:Expected error in mat foreign-procedure: "invalid foreign-procedure convention __bad_conv".
+foreign.mo:Expected error in mat foreign-procedure: "conflicting foreign-procedure convention __atomic".
 foreign.mo:Expected error in mat foreign-procedure: "conflicting foreign-procedure convention __collect_safe".
+foreign.mo:Expected error in mat foreign-procedure: "conflicting foreign-procedure convention __get_last_error".
+foreign.mo:Expected error in mat foreign-procedure: "conflicting foreign-procedure convention __errno".
+foreign.mo:Expected error in mat foreign-procedure: "missing __atomic before foreign-procedure convention __alloc".
 foreign.mo:Expected error in mat foreign-procedure: "foreign-procedure: no entry for "i do not exist"".
 foreign.mo:Expected error in mat foreign-procedure: "idint32: invalid foreign-procedure argument <int>".
 foreign.mo:Expected error in mat foreign-procedure: "idint32: invalid foreign-procedure argument <int>".
@@ -10570,6 +10592,8 @@ foreign.mo:Expected error in mat foreign-ftype: "unexpected function ftype name 
 foreign.mo:Expected error in mat foreign-ftype: "void*->void*: invalid foreign-procedure argument 0".
 foreign.mo:Expected error in mat foreign-ftype: "invalid syntax (ftype-ref integer-8 (void*->void* (make-ftype-pointer integer-8 0) 0))".
 foreign.mo:Expected error in mat foreign-ftype: "obj-void*->obj-void*: invalid foreign-procedure argument <ftype-pointer>".
+foreign.mo:Expected error in mat foreign-ftype: "get-int-uint-int-as-uint*: invalid foreign-procedure argument <ftype-pointer>".
+foreign.mo:Expected error in mat foreign-ftype: "get-int-uint-int: invalid foreign-procedure argument <ftype-pointer>".
 foreign.mo:Expected error in mat foreign-callable: "foreign-callable: spam is not a procedure".
 foreign.mo:Expected error in mat foreign-callable: "foreign-callable: spam is not a procedure".
 foreign.mo:Expected error in mat foreign-callable: "foreign-callable: spam is not a procedure".
@@ -10615,6 +10639,16 @@ ftype.mo:Expected error in mat ftype: "unexpected function ftype name outside po
 ftype.mo:Expected error in mat ftype: "unexpected function ftype name outside pointer field F1".
 ftype.mo:Expected error in mat ftype: "unexpected function ftype name outside pointer field F1".
 ftype.mo:Expected error in mat ftype: "unexpected function ftype name outside pointer field F1".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype P1 ftype-pointer (nongenerative 100))".
+ftype.mo:Expected error in mat ftype: "not a gensym p".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype I1 int (nongenerative))".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype I1 int (ng #{int of6r270eh1theews7ikmyh8vo-0}))".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype I1 int nongenerative)".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype (I1 int (nongenerative)))".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype (I1 int (ng #{int of6r270eh1theews7ikmyh8vo-0})))".
+ftype.mo:Expected error in mat ftype: "invalid syntax (define-ftype (I1 int nongenerative))".
+ftype.mo:Expected error in mat ftype: "nongenerative disallowed for alias I1".
+ftype.mo:Expected error in mat ftype: "make-record-type: incompatible record type int - different extra".
 ftype.mo:Expected error in mat ftype: "ftype-sizeof: function ftypes have unknown size".
 ftype.mo:Expected error in mat ftype: "cannot calculate offset for function index 10".
 ftype.mo:Expected error in mat ftype: "cannot calculate offset for function index 1".
@@ -10659,6 +10693,11 @@ ftype.mo:Expected error in mat ftype: "non-scalar value cannot be assigned (ftyp
 ftype.mo:Expected error in mat ftype: "non-scalar value cannot be referenced (ftype-ref B (tail *) b)".
 ftype.mo:Expected error in mat ftype: "recursive or forward reference outside pointer field Qfrob".
 ftype.mo:Expected error in mat ftype: "recursive or forward reference outside pointer field Qsnark".
+ftype.mo:Expected error in mat ftype: "duplicate field name s1".
+ftype.mo:Expected error in mat ftype: "duplicate field name d".
+ftype.mo:Expected error in mat ftype: "duplicate field name k".
+ftype.mo:Expected error in mat ftype: "duplicate field name a1".
+ftype.mo:Expected error in mat ftype: "invalid anonymous field ftype in Qfrob".
 ftype.mo:Expected error in mat ftype: "ftype-ref: ftype mismatch for <ftype-pointer>".
 ftype.mo:Expected error in mat ftype: "ftype-set!: ftype mismatch for <ftype-pointer>".
 ftype.mo:Expected error in mat ftype: "ftype-ref: ftype mismatch for <ftype-pointer>".
@@ -10767,6 +10806,8 @@ ftype.mo:Expected error in mat ftype: "invalid syntax (ftype-pointer? (struct (a
 ftype.mo:Expected error in mat ftype: "invalid syntax (ftype-&ref (struct (a int)) (a) x)".
 ftype.mo:Expected error in mat ftype: "invalid syntax (ftype-ref (struct (a int)) (a) x)".
 ftype.mo:Expected error in mat ftype: "invalid syntax (ftype-set! (struct (a int)) (a) x 0)".
+ftype.mo:Expected error in mat ftype: "cannot use scheme-object pointer ftype s-pointer".
+ftype.mo:Expected error in mat ftype: "not a scheme-object pointer ftype x-pointer".
 ftype.mo:Expected error in mat ftype-pointer-address-optimizations: "ftype-pointer-null?: () is not an ftype pointer".
 ftype.mo:Expected error in mat ftype-pointer-address-optimizations: "ftype-pointer=?: "oops" is not an ftype pointer".
 ftype.mo:Expected error in mat ftype-pointer-address-optimizations: "ftype-pointer=?: 17 is not an ftype pointer".
@@ -10915,6 +10956,7 @@ ftype.mo:Expected error in mat ftype-lock-operations: "locked operation on non-b
 ftype.mo:Expected error in mat ftype-lock-operations: "locked operation on non-integer or non-word-size field unsupported (ftype-unlock! A (f f2 0 f3a) x)".
 ftype.mo:Expected error in mat ftype-lock-operations: "locked operation on non-base-type field unsupported (ftype-unlock! A (g) x)".
 ftype.mo:Expected error in mat ftype-lock-operations: "locked operation on non-native field unsupported (ftype-unlock! A (h) x)".
+ftype.mo:Expected error in mat ftype-compile-file: "incompatible record type ftype-6 in testfile-ftype6.so".
 ftype.mo:Expected error in mat ftype-bits: "ftype-set!: invalid value 113886 for bit field of size 1".
 ftype.mo:Expected error in mat ftype-bits: "ftype-set!: invalid value #\a for bit field of size 3".
 ftype.mo:Expected error in mat ftype-bits: "ftype-set!: invalid value oops for bit field of size 14".

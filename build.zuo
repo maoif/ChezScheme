@@ -271,7 +271,16 @@
                   (run-make ""))]
       [:target ,(string->symbol (~a "install-" name)) (,name-sym)
                ,(lambda (token . args)
-                  (run-make "install"))]))
+                  (run-make "install"))]
+      [:target ,(string->symbol (~a "clean-" name)) (,mf-out)
+               ,(lambda (token . args)
+                  (run-make (~a name ".clean"))
+                  (for-each (lambda (name)
+                              (when (member (car (reverse (string-split name ".")))
+                                            '("tex" "html" "aux" "bbl" "out" "pdf"
+                                                    "firstrun" "secondrun" "thirdrun" "idx"))
+                                (rm* (build-path doc-dir name))))
+                            (ls doc-dir)))]))
 
   (define (check-boot-file-version)
     (define src-ver (source-version))
@@ -375,6 +384,7 @@
                 :command]
 
        [:target test-one (build) ,(lambda (token) (run-tests token "test-one"))]
+       [:target test-one-safe (build) ,(lambda (token) (run-tests token "test-one-safe"))]
        [:target test-some-fast (build) ,(lambda (token) (run-tests token "test-some-fast"))]
        [:target test-some (build) ,(lambda (token) (run-tests token "test-some"))]
        [:target test (build) ,(lambda (token) (run-tests token "test"))]
@@ -407,7 +417,8 @@
                 ,void]
        [:target install-docs (install-csug install-release_notes)
                 ,void]
-
+       [:target clean-docs (clean-csug clean-release_notes)
+                ,void]
 
        [:target rpm ()
                 ,(lambda (token)

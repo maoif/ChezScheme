@@ -107,6 +107,8 @@ static void main_init(void) {
       VIRTREG(tc, i) = FIX(0);
     }
 
+    CURRENTERRNOSOURCE(tc) = Sfalse;
+
     S_thread_start_code_write(tc, 0, 0, NULL, 0);
     p = S_code(tc, type_code, size_rp_header);
     CODERELOC(p) = S_relocation_table(0);
@@ -362,6 +364,13 @@ static void idiot_checks(void) {
                             imaginary half of an inexactnum */
                          + ((byte_alignment < sizeof(double)) ? byte_alignment : sizeof(double)))) {
     fprintf(stderr, "reference displacement can extend past the end of an allocation page\n");
+    oops = 1;
+  }
+
+  if (most_positive_fixnum / bigit_bits >= maximum_bignum_length) {
+    /* operations like `expt` assume that a fixnum number of bits at least fits
+       into the representation of a bignum (although possible not into memory) */
+    fprintf(stderr, "most_positive_fixnum >= maximum_bignum_length * bigit_bits\n");
     oops = 1;
   }
 
