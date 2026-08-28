@@ -420,6 +420,7 @@
   rv64nb    trv64nb
   la64le    tla64le
   a6hk      ta6hk
+  armv7le    tarmv7le
 )
 
 (include "machine.def")
