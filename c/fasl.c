@@ -2150,8 +2150,8 @@ static void riscv64_set_abs(void* address, uptr item)
      Code sequence:
 
      [0] auipc dest, 0
-     [1] ld dest, dest, 16
-     [2] jal %real-zero, 16
+     [1] ld dest, dest, 12
+     [2] jal %real-zero, 12
      [3-4] 8-bytes of addr
      [5] jalr - in case of call
 

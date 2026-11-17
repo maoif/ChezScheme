@@ -187,6 +187,49 @@
   (relop-length-test fx>=)
 )
 
+(mat return-point-alignment
+  ;; Vary instruction sizes between return points, and collect with each
+  ;; return point on the stack. Compressed instructions allow two-byte steps.
+  (andmap
+    (lambda (n)
+      (let ([p (compile
+                 `(lambda (f g x v)
+                    (let ([y (f x)])
+                      ,@(map (lambda (i) `(vector-set! v ,i y)) (iota n))
+                      (let-values ([(a b) (g y)])
+                        (cons a b)))))])
+        (let ([v (make-vector n)])
+          (and (equal? (p (lambda (x) (collect) (+ x 1))
+                         (lambda (x) (collect) (values x (+ x 1)))
+                         n v)
+                       (cons (+ n 1) (+ n 2)))
+               (equal? v (make-vector n (+ n 1)))))))
+    (iota 16)))
+
+(mat compressed-instruction-immediates
+  ;; Check both sides of the signed six-bit immediate range, including
+  ;; zero, which is reserved by some compressed instructions.
+  (andmap
+    (lambda (op)
+      (andmap
+        (lambda (n)
+          (let ([p (compile `(lambda (x) (,op x ,n)))]
+                [f (eval op)])
+            (andmap (lambda (x) (equal? (p x) (f x n)))
+                    '(-12345 -32 -1 0 1 31 12345))))
+        '(-513 -512 -33 -32 -31 -5 -4 -3 -1 0 1 3 4 5 31 32 33 496 512 1020 1024)))
+    '(fx+ fx- fxlogand fxlogor fxlogxor))
+  (andmap
+    (lambda (op)
+      (andmap
+        (lambda (n)
+          (let ([p (compile `(lambda (x) (,op x ,n)))]
+                [f (eval op)])
+            (andmap (lambda (x) (equal? (p x) (f x n)))
+                    '(-12345 -1 0 1 12345))))
+        (filter (lambda (n) (< n (fixnum-width))) '(0 1 7 31 32 60))))
+    '(fxarithmetic-shift-right)))
+
 (mat compiler1
    (error? ; unbound variable
      (i-am-not-bound))

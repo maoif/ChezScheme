@@ -651,6 +651,10 @@
                   (handler 'mneu e ... arg (... ...))])))])))
 
   (define-syntax emit
+    (syntax-rules ()
+      [(_ op x ...) (compress-code (emit-uncompressed op x ...))]))
+
+  (define-syntax emit-uncompressed
     (lambda (x)
       (syntax-case x ()
         [(k op x ...)
@@ -908,16 +912,16 @@
                   (if t (cons t ls) ls)))))
       (syntax-case x ()
         [(_ (op opnd ... ?code*) chunk ...)
-         (build-maybe-cons* #'((build long (byte-fields chunk ...))) ;;@ long: all instructions are 32 bits
+         (build-maybe-cons* #'((build long (byte-fields chunk ...)))
                             #'(aop-cons* `(asm ,op ,opnd ...) ?code*))])))
 
   (define-syntax build
     (syntax-rules ()
       [(_ x e)
-       (and (memq (datum x) '(long quad)) (integer? (datum e)))
+       (and (memq (datum x) '(word long quad)) (integer? (datum e)))
        (quote (x . e))]
       [(_ x e)
-       (memq (datum x) '(long quad))
+       (memq (datum x) '(word long quad))
        (cons 'x e)]))
 
   (define-syntax byte-fields
@@ -926,9 +930,150 @@
        (andmap fixnum? (datum (n ...)))
        (fx+ (bitwise-arithmetic-shift-left e n) ...)]))
 
+  ;; Keep the ordinary mnemonics in assembly output, but use a compressed
+  ;; encoding when the operands permit it. Branches and PC-relative sequences
+  ;; with fixed displacements use `emit-uncompressed` instead.
+  (define compress-code
+    (lambda (code*)
+      (let ([n (compress-instruction (cdar code*))])
+        (if n (cons (cons 'word n) (cdr code*)) code*))))
+
+  (define compress-instruction
+    (lambda (instr)
+      (define compact?
+        (lambda (r) (fx<= 8 r 15)))
+      (define signed6?
+        (lambda (n) (fx<= -32 n 31)))
+      (define ci
+        (lambda (funct3 rd imm)
+          (byte-fields [13 funct3] [12 (fxlogand (ash imm -5) 1)]
+                       [7 rd] [2 (fxlogand imm 31)] [0 #b01])))
+      (let* ([opcode (fxlogand instr #x7f)]
+             [rd (bitwise-bit-field instr 7 12)]
+             [funct3 (bitwise-bit-field instr 12 15)]
+             [rs1 (bitwise-bit-field instr 15 20)]
+             [rs2 (bitwise-bit-field instr 20 25)]
+             [funct7 (bitwise-bit-field instr 25 32)]
+             [imm (let ([n (bitwise-bit-field instr 20 32)])
+                    (if (fx>= n #x800) (fx- n #x1000) n))])
+        (case opcode
+          [(#b0010011)
+           (case funct3
+             [(#b000)
+              (cond
+                [(and (fx= rd 0) (fx= rs1 0) (fx= imm 0)) #x0001] ; c.nop
+                [(fx= rd 0) #f]
+                [(and (fx= rs1 0) (signed6? imm)) (ci #b010 rd imm)] ; c.li
+                [(and (fx= imm 0) (not (fx= rs1 0))) ; c.mv
+                 (byte-fields [13 #b100] [7 rd] [2 rs1] [0 #b10])]
+                [(and (fx= rd rs1) (signed6? imm) (not (fx= imm 0)))
+                 (ci #b000 rd imm)] ; c.addi
+                [(and (fx= rd 2) (fx= rs1 2) (fx<= -512 imm 496)
+                      (not (fx= imm 0)) (fx= (fxlogand imm 15) 0)) ; c.addi16sp
+                 (byte-fields [13 #b011] [12 (fxlogand (ash imm -9) 1)]
+                              [7 2] [6 (fxlogand (ash imm -4) 1)]
+                              [5 (fxlogand (ash imm -6) 1)]
+                              [3 (fxlogand (ash imm -7) 3)]
+                              [2 (fxlogand (ash imm -5) 1)] [0 #b01])]
+                [(and (fx= rs1 2) (compact? rd) (fx<= 4 imm 1020)
+                      (fx= (fxlogand imm 3) 0)) ; c.addi4spn
+                 (byte-fields [11 (fxlogand (ash imm -4) 3)]
+                              [7 (fxlogand (ash imm -6) 15)]
+                              [6 (fxlogand (ash imm -2) 1)]
+                              [5 (fxlogand (ash imm -3) 1)] [2 (fx- rd 8)])]
+                [else #f])]
+             [(#b111)
+              (and (fx= rd rs1) (compact? rd) (signed6? imm) ; c.andi
+                   (ci #b100 (fx+ rd 8) imm))]
+             [(#b001 #b101)
+              (let ([shamt (fxlogand imm 63)])
+                (and (fx= rd rs1) (not (fx= rd 0)) (not (fx= shamt 0))
+                     (cond
+                       [(fx= funct3 #b001) ; c.slli
+                        (and (fx= funct7 (ash shamt -5))
+                             (byte-fields [12 (ash shamt -5)] [7 rd]
+                                          [2 (fxlogand shamt 31)] [0 #b10]))]
+                       [else ; c.srli or c.srai
+                        (and (compact? rd) (memv (ash imm -6) '(0 16))
+                             (byte-fields [13 #b100] [12 (ash shamt -5)]
+                                          [10 (if (fx= (ash imm -6) 0) 0 1)]
+                                          [7 (fx- rd 8)] [2 (fxlogand shamt 31)] [0 #b01]))])))]
+             [else #f])]
+          [(#b0110011)
+           (cond
+             [(and (fx= funct7 0) (fx= funct3 0) (not (fx= rd 0)))
+              (cond
+                [(and (fx= rs1 0) (not (fx= rs2 0))) ; c.mv
+                 (byte-fields [13 #b100] [7 rd] [2 rs2] [0 #b10])]
+                [(and (fx= rs2 0) (not (fx= rs1 0))) ; c.mv
+                 (byte-fields [13 #b100] [7 rd] [2 rs1] [0 #b10])]
+                [(and (fx= rd rs1) (not (fx= rs2 0))) ; c.add
+                 (byte-fields [13 #b100] [12 1] [7 rd] [2 rs2] [0 #b10])]
+                [(and (fx= rd rs2) (not (fx= rs1 0)))
+                 (byte-fields [13 #b100] [12 1] [7 rd] [2 rs1] [0 #b10])]
+                [else #f])]
+             [(and (compact? rd)
+                   (or (and (fx= rd rs1) (compact? rs2))
+                       (and (fx= rd rs2) (compact? rs1) (fx= funct7 0)
+                            (memv funct3 '(#b100 #b110 #b111)))))
+              (let ([op (cond
+                          [(and (fx= funct7 #b0100000) (fx= funct3 0)) 0]
+                          [(fx= funct7 0)
+                           (case funct3 [(#b100) 1] [(#b110) 2] [(#b111) 3] [else #f])]
+                          [else #f])])
+                (and op (byte-fields [13 #b100] [10 #b11] [7 (fx- rd 8)]
+                                     [5 op] [2 (fx- (if (fx= rd rs1) rs2 rs1) 8)] [0 #b01])))]
+             [else #f])]
+          [(#b0000011 #b0000111 #b0100011 #b0100111)
+           (let* ([store? (fxlogtest opcode #b0100000)]
+                  [fp? (fxlogtest opcode #b0000100)]
+                  [r (if store? rs2 rd)]
+                  [n (if store?
+                         (let ([n (fx+ (fxsll funct7 5) rd)])
+                           (if (fx>= n #x800) (fx- n #x1000) n))
+                         imm)]
+                  [wide? (fx= funct3 #b011)]
+                  [cf (if wide? (if fp? #b001 #b011) #b010)])
+             (and (or wide? (and (not fp?) (fx= funct3 #b010)))
+                  (fx>= n 0) (fx= (fxlogand n (if wide? 7 3)) 0)
+                  (cond
+                    [(and (compact? r) (compact? rs1) (fx<= n (if wide? 248 124)))
+                     (byte-fields [13 (if store? (fx+ cf #b100) cf)]
+                                  [10 (fxlogand (ash n -3) 7)] [7 (fx- rs1 8)]
+                                  [5 (if wide?
+                                         (fxlogand (ash n -6) 3)
+                                         (fx+ (fxsll (fxlogand (ash n -2) 1) 1)
+                                              (fxlogand (ash n -6) 1)))]
+                                  [2 (fx- r 8)])]
+                    [(and (fx= rs1 2) (fx<= n (if wide? 504 252)))
+                     (if store?
+                         (byte-fields [13 (fx+ cf #b100)]
+                                      [7 (if wide?
+                                             (fx+ (fxsll (fxlogand (ash n -3) 7) 3)
+                                                  (fxlogand (ash n -6) 7))
+                                             (fx+ (fxsll (fxlogand (ash n -2) 15) 2)
+                                                  (fxlogand (ash n -6) 3)))]
+                                      [2 r] [0 #b10])
+                         (and (or fp? (not (fx= r 0)))
+                              (byte-fields [13 cf] [12 (fxlogand (ash n -5) 1)] [7 r]
+                                           [2 (if wide?
+                                                  (fx+ (fxsll (fxlogand (ash n -3) 3) 3)
+                                                       (fxlogand (ash n -6) 7))
+                                                  (fx+ (fxsll (fxlogand (ash n -2) 7) 2)
+                                                       (fxlogand (ash n -6) 3)))]
+                                           [0 #b10])))]
+                    [else #f])))]
+          [(#b0110111)
+           (let ([n (ash instr -12)])
+             (and (not (memv rd '(0 2))) (signed6? n) (not (fx= n 0)) (ci #b011 rd n)))]
+          [(#b1100111)
+           (and (fx= funct3 0) (fx= imm 0) (not (fx= rs1 0)) (memv rd '(0 1))
+                (byte-fields [13 #b100] [12 rd] [7 rs1] [0 #b10]))]
+          [else #f]))))
+
   (define shamt?
     (lambda (imm)
-      (and (fixnum? imm) (fx<= 0 imm (expt 2 6))))) ;; RV64I supports shift up to 2^6
+      (and (fixnum? imm) (fx<= 0 imm (fx- (expt 2 6) 1))))) ;; RV64I supports shifts from 0 through 63
   (define signed12?
     (lambda (imm)
       (and (fixnum? imm) (fx<= (fx- (expt 2 11))
@@ -952,7 +1097,7 @@
   (define jump-disp?
     (lambda (x)
       (and (signed-32? x)
-           (not (logtest x #b11))))) ;; 4-byte aligned
+           (fxeven? x)))) ;; 2-byte aligned
   (define cond-jump-disp?
     (lambda (x)
       (and (fixnum? x)
@@ -1044,13 +1189,13 @@
   (define asm-mul/ovfl
     (lambda (code* dest src0 src1)
       (Trivit (dest src0 src1)
-              (emit mulh %scratch1 src0 src1
-                    (emit mul dest src0 src1
-                          (emit srai %cond dest 63
-                                (emit bne %scratch1 %cond 12
-                                      (emit addi %cond %real-zero 0
-                                            (emit jal %real-zero 8
-                                                  (emit addi %cond %real-zero 1
+              (emit-uncompressed mulh %scratch1 src0 src1
+                    (emit-uncompressed mul dest src0 src1
+                          (emit-uncompressed srai %cond dest 63
+                                (emit-uncompressed bne %scratch1 %cond 12
+                                      (emit-uncompressed addi %cond %real-zero 0
+                                            (emit-uncompressed jal %real-zero 8
+                                                  (emit-uncompressed addi %cond %real-zero 1
                                                         code*))))))))))
 
   (define asm-div
@@ -1235,11 +1380,11 @@
     ;;L:
     (lambda (code* addr t0)
       (Trivit (addr t0)
-              (emit lr.d t0 addr '()
-                    (emit bne t0 %real-zero 12
-                          (emit addi t0 %real-zero 1
-                                (emit sc.d t0 addr t0
-                                      (emit sltiu %cond t0 1 code*))))))))
+              (emit-uncompressed lr.d t0 addr '()
+                    (emit-uncompressed bne t0 %real-zero 12
+                          (emit-uncompressed addi t0 %real-zero 1
+                                (emit-uncompressed sc.d t0 addr t0
+                                      (emit-uncompressed sltiu %cond t0 1 code*))))))))
 
   (define-who asm-lock+/-
     ;;S:
@@ -1251,13 +1396,13 @@
     (lambda (op)
       (lambda (code* addr t0 t1)
         (Trivit (addr t0 t1)
-                (emit lr.d t0 addr '()
-                      (let ([code* (emit sc.d t1 addr t0
-                                         (emit bne t1 %real-zero -12
-                                               (emit sltiu %cond t0 1 code*)))])
+                (emit-uncompressed lr.d t0 addr '()
+                      (let ([code* (emit-uncompressed sc.d t1 addr t0
+                                         (emit-uncompressed bne t1 %real-zero -12
+                                               (emit-uncompressed sltiu %cond t0 1 code*)))])
                         (case op
-                          [(locked-incr!) (emit addi t0 t0 1 code*)]
-                          [(locked-decr!) (emit addi t0 t0 -1 code*)]
+                          [(locked-incr!) (emit-uncompressed addi t0 t0 1 code*)]
+                          [(locked-decr!) (emit-uncompressed addi t0 t0 -1 code*)]
                           [else (sorry! who "unexpected op ~s" op)])))))))
 
   (define asm-cas
@@ -1269,12 +1414,12 @@
     ;;L:
     (lambda (code* addr old new t0 t1)
       (Trivit (addr old new t0 t1)
-              (emit lr.d t0 addr '()
-                    (emit bne t0 old 16
-                          (emit sc.d t1 addr new
-                                (emit sltiu %cond t1 1
-                                      (emit jal %real-zero 8
-                                            (emit xor %cond %cond %cond code*)))))))))
+              (emit-uncompressed lr.d t0 addr '()
+                    (emit-uncompressed bne t0 old 16
+                          (emit-uncompressed sc.d t1 addr new
+                                (emit-uncompressed sltiu %cond t1 1
+                                      (emit-uncompressed jal %real-zero 8
+                                            (emit-uncompressed xor %cond %cond %cond code*)))))))))
 
   (define-who asm-relop
     (lambda (info)
@@ -1370,11 +1515,12 @@
               (emit addi dest dest lower
                     (aop-cons* `(asm "long:" ,n) code*))))))
 
+  ;; Relocation offsets in compile.ss and fasl.c depend on this layout.
   (define ax-mov64
     (lambda (dest n code*)
-      (emit auipc dest 0
-            (emit ld dest dest 12
-                  (emit jal %real-zero 12
+      (emit-uncompressed auipc dest 0
+            (emit-uncompressed ld dest dest 12
+                  (emit-uncompressed jal %real-zero 12
                         (cons* `(quad . ,n)
                                (aop-cons* `(asm "quad:" ,n) code*)))))))
 
@@ -1537,8 +1683,8 @@
                                 (cond
                                   [(luiable? disp)
                                    (Trivit (dest)
-                                     (emit auipc dest (upper20 disp)
-                                           (emit addi dest dest (lower12 disp) '())))]
+                                     (emit-uncompressed auipc dest (upper20 disp)
+                                           (emit-uncompressed addi dest dest (lower12 disp) '())))]
                                   [else #f]))))]
                          [else #f])
                         ;;@ (label-ref ...) is processed by (make-funcrel) in (Trivit-rand), that is, into a 'literal form
@@ -1555,17 +1701,17 @@
                          (cond
                           [(eqv? disp 0) '()]
                           ;;@ todo add jal for 12-bit offset?
-                          [(jump-disp? disp) (emit auipc %jump (upper20 (fx+ disp 8))
+                          [(jump-disp? disp) (emit-uncompressed auipc %jump (upper20 (fx+ disp 8))
                                                    ;;@ todo disp is recomputed in munge? yes
                                                    ;; 8 is obtained from debugging
-                                                   (emit jalr %real-zero %jump (lower12 (fx+ disp 8)) '()))]
+                                                   (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp 8)) '()))]
                           [else (sorry! who "disp value not supported")])))]
                     [else
                      ;; label must be somewhere above.  generate something so that a hard loop
                      ;; doesn't get dropped.  this also has some chance of being the right size
                      ;; for the final branch instruction.
-                     (emit auipc %jump 0
-                           (emit jalr %real-zero %jump 0 '()))]))))
+                     (emit-uncompressed auipc %jump 0
+                           (emit-uncompressed jalr %real-zero %jump 0 '()))]))))
 
   ;; reverse case not handled
   ;; It is, I guess, used when the first operand is
@@ -1615,29 +1761,29 @@
                         (safe-assert (luiable? disp2))
                         (if (or (and (fx<= 0 (fx+ disp2 4) (fx- (expt 2 11) 1)))
                                 (and (fx<= (fx- (expt 2 12)) (fx+ disp2 4) 0)))
-                            (emit beq %cond %real-zero (fx+ disp2 4) '())
-                            (emit beq %cond %real-zero 8
-                                  (emit jal %real-zero 12 ;; fall through
-                                        (emit auipc %jump (upper20 (fx+ disp2 8)) ;; 2 instr below
-                                              (emit jalr %real-zero %jump (lower12 (fx+ disp2 8)) '())))))]
+                            (emit-uncompressed beq %cond %real-zero (fx+ disp2 4) '())
+                            (emit-uncompressed beq %cond %real-zero 8
+                                  (emit-uncompressed jal %real-zero 12 ;; fall through
+                                        (emit-uncompressed auipc %jump (upper20 (fx+ disp2 8)) ;; 2 instr below
+                                              (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp2 8)) '())))))]
                        ;; normal
                        [(fx= disp2 0)
                         (safe-assert (luiable? disp1))
                         (if (or (and (fx<= 0 (fx+ disp1 4) (fx- (expt 2 11) 1)))
                                 (and (fx<= (fx- (expt 2 12)) (fx+ disp1 4) 0)))
-                            (emit bne %cond %real-zero (fx+ disp1 4) '())
-                            (emit bne %cond %real-zero 8
-                                  (emit jal %real-zero 12 ;; fall through
-                                        (emit auipc %jump (upper20 (fx+ disp1 8)) ;; 2 instr below
-                                              (emit jalr %real-zero %jump (lower12 (fx+ disp1 8)) '())))))]
+                            (emit-uncompressed bne %cond %real-zero (fx+ disp1 4) '())
+                            (emit-uncompressed bne %cond %real-zero 8
+                                  (emit-uncompressed jal %real-zero 12 ;; fall through
+                                        (emit-uncompressed auipc %jump (upper20 (fx+ disp1 8)) ;; 2 instr below
+                                              (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp1 8)) '())))))]
                        ;; others
                        [else
                         (safe-assert (luiable? (fx+ disp1 8)) (luiable? (fx+ disp2 16)))
-                        (emit bne %cond %real-zero 12
-                              (emit auipc %jump (upper20 (fx+ disp2 16)) ;; 4 instr below
-                                    (emit jalr %real-zero %jump (lower12 (fx+ disp2 16))
-                                          (emit auipc %jump (upper20 (fx+ disp1 8)) ;; 2 instr below
-                                                (emit jalr %real-zero %jump (lower12 (fx+ disp1 8)) '())))))])))))
+                        (emit-uncompressed bne %cond %real-zero 12
+                              (emit-uncompressed auipc %jump (upper20 (fx+ disp2 16)) ;; 4 instr below
+                                    (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp2 16))
+                                          (emit-uncompressed auipc %jump (upper20 (fx+ disp1 8)) ;; 2 instr below
+                                                (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp1 8)) '())))))])))))
 
   (define asm-direct-jump
     (lambda (l offset)
@@ -1747,16 +1893,17 @@
     (lambda (info)
       (emit jalr %real-zero %ra 0 '())))
 
+  ;; Keep the relocation sequences uncompressed, as in ax-mov64.
   ;; no need to save ra
   ;; eed saving %cond? No need since it's always clobbered before use.
   (define asm-helper-jump
     (lambda (code* reloc)
-      (emit auipc %jump 0
-            (emit ld %jump %jump 12
-                  (emit jal %real-zero 12
+      (emit-uncompressed auipc %jump 0
+            (emit-uncompressed ld %jump %jump 12
+                  (emit-uncompressed jal %real-zero 12
                         (cons* `(quad . 0)
                                (aop-cons* `(asm "quad jump addr")
-                                          (emit jalr %real-zero %jump 0
+                                          (emit-uncompressed jalr %real-zero %jump 0
                                                 (asm-helper-relocation code* reloc)))))))))
 
   ;; need to save ra
@@ -1772,12 +1919,12 @@
               (p code*))))
       (maybe-save-ra code*
                      (lambda (code*)
-                       (emit auipc tmp 0
-                             (emit ld tmp tmp 12
-                                   (emit jal %real-zero 12
+                       (emit-uncompressed auipc tmp 0
+                             (emit-uncompressed ld tmp tmp 12
+                                   (emit-uncompressed jal %real-zero 12
                                          (cons* `(quad . 0)
                                                 (aop-cons* `(asm "quad call addr")
-                                                           (emit jalr %ra tmp 0
+                                                           (emit-uncompressed jalr %ra tmp 0
                                                                  (asm-helper-relocation code* reloc)))))))))))
 
   (define asm-nop

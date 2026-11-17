@@ -39,7 +39,7 @@ procedure) is given in parentheses.
      \item AArch64 including Android, nonthreaded (arm64le) and threaded (tarm64le)
      \item ARMv6 (32-bit armhf), nonthreaded (arm32le) and threaded (tarm32le)
      \item ARMv7 (32-bit armel) including Android, nonthreaded (armv7le) and threaded (tarmv7le)
-     \item RV64G (64-bit RISC-V), nonthreaded (rv64le) and threaded (trv64le)
+     \item RV64GC (64-bit RISC-V), nonthreaded (rv64le) and threaded (trv64le)
      \item LoongArch64 (64-bit LoongArch), nonthreaded (la64le) and threaded (tla64le)
      \item PowerPC (32-bit), nonthreaded (ppc32le) and threaded (tppc32le)
      \end{itemizeC}
@@ -4075,6 +4075,13 @@ x86\_64 has been fixed.
 
 %-----------------------------------------------------------------------------
 \section{Performance Enhancements}\label{section:performance}
+
+\subsection{Compressed RISC-V instructions (10.5.0)}
+
+The RISC-V compiler now uses 16-bit compressed instructions when the
+operands permit, reducing the size of generated code.
+RISC-V machine types now require RV64GC, including the C extension,
+instead of RV64G.
 
 \subsection{Reduced allocation and copying (9.6.0)}
 
