@@ -2130,12 +2130,12 @@ static void sparc64_set_literal(void* address, uptr item) {
 #ifdef RISCV64
 static uptr riscv64_get_abs(void* address)
 {
-  return LOAD_UNALIGNED_UPTR((I32 *)address + 3);
+  return LOAD_UNALIGNED_UPTR((char *)address + 12);
 }
 
 static uptr riscv64_get_jump(void* address)
 {
-  return LOAD_UNALIGNED_UPTR((I32 *)address + 3);
+  return LOAD_UNALIGNED_UPTR((char *)address + 12);
 }
 
 #define AUIPC_INSTR(dest, offset)   (0x17 | ((dest) << 7) | ((offset) << 12))
@@ -2158,10 +2158,14 @@ static void riscv64_set_abs(void* address, uptr item)
     Although vfasl may have overwritten the first instruction,
     so we need to extract `dest` from the second.
   */
-  int dest = EXTRACT_LD_INSTR_DEST(((I32 *)address)[1]);
-  ((I32 *)address)[0] = AUIPC_INSTR(dest, 0);
+  U32 instr;
+  int dest;
+  memcpy(&instr, (char *)address + 4, sizeof(U32));
+  dest = EXTRACT_LD_INSTR_DEST(instr);
+  instr = AUIPC_INSTR(dest, 0);
+  memcpy(address, &instr, sizeof(U32));
 
-  STORE_UNALIGNED_UPTR((I32 *)address + 3, item);
+  STORE_UNALIGNED_UPTR((char *)address + 12, item);
 }
 
 static void riscv64_set_jump(void* address, uptr item)
@@ -2178,9 +2182,10 @@ static void riscv64_set_jump(void* address, uptr item)
     Although vfasl may have overwritten the first instruction,
     it's always the same, so we can reconstruct it.
   */
-  ((I32 *)address)[0] = AUIPC_INSTR(JUMP_REG, 0);
+  U32 instr = AUIPC_INSTR(JUMP_REG, 0);
+  memcpy(address, &instr, sizeof(U32));
 
-  STORE_UNALIGNED_UPTR((I32 *)address + 3, item);
+  STORE_UNALIGNED_UPTR((char *)address + 12, item);
 }
 #endif /* RISCV64 */
 

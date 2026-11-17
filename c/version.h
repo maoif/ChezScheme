@@ -82,15 +82,24 @@
 
 /* For an architecture where a load or store of a 64-bit value needs
    to be 8-byte aligned, define `LOAD_UNALIGNED_UPTR` and
-   `STORE_UNALIGNED_UPTR` to support a read that is 4-byte aligned. */
-#if defined(__sparc_v9__) || defined(__sparcv9) || defined(__riscv)
-# if defined(__riscv)
-#  define UNALIGNED_UPTR_HI 1
-#  define UNALIGNED_UPTR_LO 0
-# else
+   `STORE_UNALIGNED_UPTR` to support less-aligned accesses. */
+#if defined(__riscv)
+FORCEINLINE uptr load_unaligned_uptr(uptr *addr) {
+  U16 *p = (U16 *)addr;
+  return ((uptr)p[3] << 48) | ((uptr)p[2] << 32) | ((uptr)p[1] << 16) | p[0];
+}
+FORCEINLINE void store_unaligned_uptr(uptr *addr, uptr val) {
+  U16 *p = (U16 *)addr;
+  p[0] = val;
+  p[1] = val >> 16;
+  p[2] = val >> 32;
+  p[3] = val >> 48;
+}
+# define LOAD_UNALIGNED_UPTR(addr) load_unaligned_uptr((uptr *)(addr))
+# define STORE_UNALIGNED_UPTR(addr, v) store_unaligned_uptr((uptr *)(addr), v)
+#elif defined(__sparc_v9__) || defined(__sparcv9)
 #  define UNALIGNED_UPTR_HI 0
 #  define UNALIGNED_UPTR_LO 1
-# endif
 FORCEINLINE uptr load_unaligned_uptr(uptr *addr) {
   return (((uptr)((unsigned *)addr)[UNALIGNED_UPTR_HI]) << 32) | ((unsigned *)addr)[UNALIGNED_UPTR_LO];
 }

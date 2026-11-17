@@ -8278,61 +8278,41 @@
                 (constant-case align-rpheader
                   [(#f) #f]
                   [else
-                   ;; We're assuming that a single nop instruction is enough to
-                   ;; bring things into alignment, since the issue is normally
-                   ;; on a 64-bit RISC machine with 32-bit instructions
                    (asm-nop)]))
+              (define (align-code c* offset align)
+                (if (aligned? (fx- offset align))
+                    (values c* offset)
+                    (align-code (cons align-chunk c*) (fx+ offset (chunk-size align-chunk)) align)))
               (define (munge-pass c* iteration)
                 (define get-local-label-offset
                   (lambda (l)
                     (local-label-iteration-set! l iteration)
                     (local-label-offset l)))
-                (let f ([rc* (reverse c*)] [c* '()] [offset 0] [align 'none])
+                (let f ([rc* (reverse c*)] [c* '()] [offset 0] [align #f])
                   (if (null? rc*)
-                      (constant-case align-rpheader
-                        [(#f) (values c* offset)]
-                        [else (cond
-                                [(or munge-recur?
-                                     (eq? align 'none)
-                                     (if (eq? align 'even)
-                                         (aligned? offset)
-                                         (not (aligned? offset))))
-                                 (values c* offset)]
-                                [else
-                                 ;; add no-op chunk for alignment:
-                                 (values (cons align-chunk c*) (fx+ offset (chunk-size align-chunk)))])])
+                      (if (or munge-recur? (not align))
+                          (values c* offset)
+                          (align-code c* offset align))
                       (let ([c (car rc*)] [rc* (cdr rc*)])
                         (cond
                           [(eq? c align-chunk)
-                           ;; drop alignment chunk created by an earlier pass
+                           ;; drop alignment chunks created by an earlier pass
                            (f rc* c* offset align)]
                           [(lchunk? c)
                            (let ([l (lchunk-l c)] [offset (fx+ offset (chunk-size c))])
-                             (let* ([need-align? (constant-case align-rpheader
-                                                   [(#f) #f]
-                                                   [else (cond
-                                                           [(not (aligned-label? l)) #f]
-                                                           [(eq? align 'none) #f]
-                                                           [(eq? align 'even) (not (aligned? offset))]
-                                                           [else (aligned? offset)])])]
-                                    [offset (if need-align?
-                                                (fx+ offset (chunk-size align-chunk))
-                                                offset)])
+                             (let-values ([(c* offset)
+                                           (if (and align (aligned-label? l))
+                                               (align-code c* offset align)
+                                               (values c* offset))])
                                (when l
                                  (unless (eq? (get-local-label-offset l) offset)
                                    (local-label-offset-set! l offset)
                                    (when (fx= (local-label-iteration l) iteration)
                                      (set! munge-recur? #t))))
-                               (f rc*
-                                  (if need-align? (list* c align-chunk c*) (cons c c*))
-                                  offset
+                               (f rc* (cons c c*) offset
                                   (constant-case align-rpheader
-                                    [(#f) 'none]
-                                    [else
-                                     (cond
-                                       [(or need-align? (not (aligned-label? l))) align]
-                                       [(aligned? offset) 'even]
-                                       [else 'odd])]))))]
+                                    [(#f) #f]
+                                    [else (if (and (not align) (aligned-label? l)) offset align)]))))]
                           [(gchunk? c)
                            (let ([l (gchunk-l c)])
                              (let ([c (if (and (eq? (get-local-label-offset l) (gchunk-laddr c))

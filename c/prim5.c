@@ -1001,11 +1001,13 @@ static ptr s_set_code_word(ptr p, ptr n, ptr x) {
 
 static ptr s_set_code_long(ptr p, ptr n, ptr x) {
     I32 *a;
+    I32 val;
     ptr tc = get_thread_context();
 
     a = (I32 *)TO_VOIDP((uptr)p + UNFIX(n));
     S_thread_start_code_write(tc, 0, 0, TO_VOIDP(a), sizeof(I32));
-    *a = (I32)(Sfixnump(x) ? UNFIX(x) : Sinteger_value(x));
+    val = (I32)(Sfixnump(x) ? UNFIX(x) : Sinteger_value(x));
+    memcpy(a, &val, sizeof(I32));
     S_thread_end_code_write(tc, 0, 0, TO_VOIDP(a), sizeof(I32));
 
     return Svoid;
@@ -1013,11 +1015,13 @@ static ptr s_set_code_long(ptr p, ptr n, ptr x) {
 
 static void s_set_code_long2(ptr p, ptr n, ptr h, ptr l) {
     I32 *a;
+    I32 val;
     ptr tc = get_thread_context();
 
     a = (I32 *)TO_VOIDP((uptr)p + UNFIX(n));
     S_thread_start_code_write(tc, 0, 0, TO_VOIDP(a), sizeof(I32));
-    *a = (I32)((UNFIX(h) << 16) + UNFIX(l));
+    val = (I32)((UNFIX(h) << 16) + UNFIX(l));
+    memcpy(a, &val, sizeof(I32));
     S_thread_end_code_write(tc, 0, 0, TO_VOIDP(a), sizeof(I32));
 }
 
