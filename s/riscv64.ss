@@ -1069,6 +1069,21 @@
           [(#b1100111)
            (and (fx= funct3 0) (fx= imm 0) (not (fx= rs1 0)) (memv rd '(0 1))
                 (byte-fields [13 #b100] [12 rd] [7 rs1] [0 #b10]))]
+          [(#b1101111)
+           (let* ([n (byte-fields [20 (bitwise-bit-field instr 31 32)]
+                                  [12 (bitwise-bit-field instr 12 20)]
+                                  [11 (bitwise-bit-field instr 20 21)]
+                                  [1 (bitwise-bit-field instr 21 31)])]
+                  [n (if (fx>= n #x100000) (fx- n #x200000) n)])
+             (and (fx= rd 0) (signed12? n)
+                  (byte-fields [13 #b101] [12 (fxlogand (ash n -11) 1)]
+                               [11 (fxlogand (ash n -4) 1)]
+                               [9 (fxlogand (ash n -8) 3)]
+                               [8 (fxlogand (ash n -10) 1)]
+                               [7 (fxlogand (ash n -6) 1)]
+                               [6 (fxlogand (ash n -7) 1)]
+                               [3 (fxlogand (ash n -1) 7)]
+                               [2 (fxlogand (ash n -5) 1)] [0 #b01])))]
           [else #f]))))
 
   (define shamt?
@@ -1692,26 +1707,31 @@
 
   ;;@ todo use auipc + addi
   (define-who asm-jump
-    (lambda (l next-addr)
-      (make-gchunk l next-addr
-                   (cond
-                    [(local-label-offset l) =>
-                     (lambda (offset)
-                       (let ([disp (fx- next-addr offset)])
-                         (cond
-                          [(eqv? disp 0) '()]
-                          ;;@ todo add jal for 12-bit offset?
-                          [(jump-disp? disp) (emit-uncompressed auipc %jump (upper20 (fx+ disp 8))
-                                                   ;;@ todo disp is recomputed in munge? yes
-                                                   ;; 8 is obtained from debugging
-                                                   (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp 8)) '()))]
-                          [else (sorry! who "disp value not supported")])))]
-                    [else
-                     ;; label must be somewhere above.  generate something so that a hard loop
-                     ;; doesn't get dropped.  this also has some chance of being the right size
-                     ;; for the final branch instruction.
-                     (emit-uncompressed auipc %jump 0
-                           (emit-uncompressed jalr %real-zero %jump 0 '()))]))))
+    (case-lambda
+      [(l next-addr) (asm-jump l next-addr 0)]
+      [(l next-addr min-size)
+        (make-gchunk l next-addr
+                     (cond
+                      [(local-label-offset l) =>
+                       (lambda (offset)
+                         (let ([disp (fx- next-addr offset)])
+                           (cond
+                            [(and (eqv? disp 0) (fx= min-size 0)) '()]
+                            [(and (fx<= min-size 2) (fxeven? disp) (signed12? (fx+ disp 2)))
+                             (emit jal %real-zero (fx+ disp 2) '())]
+                            [(and (fx<= min-size 4) (fxeven? disp) (signed21? (fx+ disp 4)))
+                             (emit-uncompressed jal %real-zero (fx+ disp 4) '())]
+                            [(jump-disp? disp) (emit-uncompressed auipc %jump (upper20 (fx+ disp 8))
+                                                     ;;@ todo disp is recomputed in munge? yes
+                                                     ;; 8 is obtained from debugging
+                                                     (emit-uncompressed jalr %real-zero %jump (lower12 (fx+ disp 8)) '()))]
+                            [else (sorry! who "disp value not supported")])))]
+                      [else
+                       ;; label must be somewhere above.  generate something so that a hard loop
+                       ;; doesn't get dropped.  this also has some chance of being the right size
+                       ;; for the final branch instruction.
+                       (emit-uncompressed auipc %jump 0
+                             (emit-uncompressed jalr %real-zero %jump 0 '()))]))]))
 
   ;; reverse case not handled
   ;; It is, I guess, used when the first operand is

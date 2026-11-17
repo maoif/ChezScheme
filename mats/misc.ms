@@ -230,6 +230,23 @@
         (filter (lambda (n) (< n (fixnum-width))) '(0 1 7 31 32 60))))
     '(fxarithmetic-shift-right)))
 
+(mat compiler-branch-displacements
+  ;; Vary loop bodies across short and long branch encodings.
+  (andmap
+    (lambda (n)
+      (let ([p (compile
+                 `(lambda (x v)
+                    (let loop ([i x])
+                      (if (fx= i 0)
+                          v
+                          (begin
+                            ,@(map (lambda (j) `(vector-set! v ,j i)) (iota n))
+                            (loop (fx- i 1)))))))])
+        (let ([v (make-vector n)])
+          (and (eq? (p 3 v) v)
+               (equal? v (make-vector n 1))))))
+    '(0 1 30 31 32 63 64 127 128 255 256 511 512 1024)))
+
 (mat compiler1
    (error? ; unbound variable
      (i-am-not-bound))

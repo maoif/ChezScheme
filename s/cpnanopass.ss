@@ -8318,7 +8318,12 @@
                              (let ([c (if (and (eq? (get-local-label-offset l) (gchunk-laddr c))
                                                (eq? (gchunk-next-offset c) offset))
                                           c
-                                          (asm-jump l offset))])
+                                          (constant-case architecture
+                                            [(riscv64)
+                                             ;; After initial contraction, only widen jumps.
+                                             ;; Padding can otherwise make short jumps oscillate.
+                                             (asm-jump l offset (if (fx= iteration 2) 0 (chunk-size c)))]
+                                            [else (asm-jump l offset)]))])
                                (f rc* (cons c c*) (fx+ offset (chunk-size c)) align)))]
                           [(cgchunk? c)
                            (let ([l1 (cgchunk-l1 c)] [l2 (cgchunk-l2 c)])
