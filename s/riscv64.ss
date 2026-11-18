@@ -1769,6 +1769,11 @@
   (define-who asm-jump
     (case-lambda
       [(l next-addr) (asm-jump l next-addr 0)]
+      [(l next-addr min-size iteration)
+       ;; The first munge pass can contract jumps. Later passes only widen
+       ;; them, since changing return-point padding can otherwise make a
+       ;; jump alternate between short and long encodings indefinitely.
+       (asm-jump l next-addr (if (fx= iteration 2) 0 min-size))]
       [(l next-addr min-size)
         (make-gchunk l next-addr
                      (cond

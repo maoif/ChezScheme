@@ -2159,10 +2159,8 @@ static void riscv64_set_abs(void* address, uptr item)
     so we need to extract `dest` from the second.
   */
   U32 instr;
-  int dest;
   memcpy(&instr, (char *)address + 4, sizeof(U32));
-  dest = EXTRACT_LD_INSTR_DEST(instr);
-  instr = AUIPC_INSTR(dest, 0);
+  instr = AUIPC_INSTR(EXTRACT_LD_INSTR_DEST(instr), 0);
   memcpy(address, &instr, sizeof(U32));
 
   STORE_UNALIGNED_UPTR((char *)address + 12, item);

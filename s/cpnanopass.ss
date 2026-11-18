@@ -8319,10 +8319,7 @@
                                                (eq? (gchunk-next-offset c) offset))
                                           c
                                           (constant-case architecture
-                                            [(riscv64)
-                                             ;; After initial contraction, only widen jumps.
-                                             ;; Padding can otherwise make short jumps oscillate.
-                                             (asm-jump l offset (if (fx= iteration 2) 0 (chunk-size c)))]
+                                            [(riscv64) (asm-jump l offset (chunk-size c) iteration)]
                                             [else (asm-jump l offset)]))])
                                (f rc* (cons c c*) (fx+ offset (chunk-size c)) align)))]
                           [(cgchunk? c)
