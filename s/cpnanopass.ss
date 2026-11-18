@@ -8284,6 +8284,8 @@
                   (lambda (l)
                     (local-label-iteration-set! l iteration)
                     (local-label-offset l)))
+                ;; `align` is the first aligned label's offset, or `'none`.
+                ;; Two-byte instructions require more than an even/odd distinction.
                 (let f ([rc* (reverse c*)] [c* '()] [offset 0] [align 'none])
                   (if (null? rc*)
                       (constant-case align-rpheader
@@ -8294,7 +8296,7 @@
                                      (aligned? (fx- offset align)))
                                  (values c* offset)]
                                 [else
-                                 ;; add no-op chunk for alignment:
+                                 ;; Add `nop` chunks until the code start is aligned.
                                  (f rc* (cons align-chunk c*) (fx+ offset (chunk-size align-chunk)) align)])])
                       (let ([c (car rc*)] [rc* (cdr rc*)])
                         (cond
@@ -8303,6 +8305,8 @@
                            (f rc* c* offset align)]
                           [(lchunk? c)
                            (let ([l (lchunk-l c)] [offset (fx+ offset (chunk-size c))])
+                             ;; Round the distance from `align` up to a pointer boundary.
+                             ;; `align-bytes` is `#f` when alignment is not required.
                              (let* ([align-bytes (constant-case align-rpheader
                                                    [(#f) #f]
                                                    [else (cond
@@ -8334,6 +8338,8 @@
                                                (eq? (gchunk-next-offset c) offset))
                                           c
                                           (constant-case architecture
+                                            ;; Preserve the previous size so RISC-V jumps
+                                            ;; only widen after the initial contraction pass.
                                             [(riscv64) (asm-jump l offset (chunk-size c) iteration)]
                                             [else (asm-jump l offset)]))])
                                (f rc* (cons c c*) (fx+ offset (chunk-size c)) align)))]
