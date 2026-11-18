@@ -654,6 +654,10 @@
     (syntax-rules ()
       [(_ op x ...) (compress-code (emit-uncompressed op x ...))]))
 
+  ;; Emit the ordinary 32-bit encoding without trying a compressed form.
+  ;; Use this for relocation sequences and branches whose displacements
+  ;; assume four bytes per instruction, even when an operand would permit
+  ;; compression. The sequence can still start at a two-byte boundary.
   (define-syntax emit-uncompressed
     (lambda (x)
       (syntax-case x ()
@@ -940,10 +944,16 @@
 
   (define compress-instruction
     (lambda (instr)
+      ;; Return a 16-bit encoding, or #f to keep the original instruction.
+      ;; Compact register fields encode x8 through x15 (or f8 through f15)
+      ;; as three bits. Other compressed forms retain five-bit registers.
       (define compact?
         (lambda (r) (fx<= 8 r 15)))
       (define signed6?
         (lambda (n) (fx<= -32 n 31)))
+      ;; CI instructions split a signed six-bit immediate between bit 12
+      ;; and bits 6:2. The opcode and destination field distinguish forms
+      ;; such as c.addi, c.li, c.lui, and c.andi.
       (define ci
         (lambda (funct3 rd imm)
           (byte-fields [13 funct3] [12 (fxlogand (ash imm -5) 1)]
@@ -958,60 +968,87 @@
                     (if (fx>= n #x800) (fx- n #x1000) n))])
         (case opcode
           [(#b0010011)
+           ;; Integer immediate operations: addi, andi, and shifts.
            (case funct3
              [(#b000)
               (cond
-                [(and (fx= rd 0) (fx= rs1 0) (fx= imm 0)) #x0001] ; c.nop
+                ;; c.nop is addi x0, x0, 0. Leave other writes to x0
+                ;; uncompressed instead of emitting compressed hints.
+                [(and (fx= rd 0) (fx= rs1 0) (fx= imm 0)) #x0001]
                 [(fx= rd 0) #f]
-                [(and (fx= rs1 0) (signed6? imm)) (ci #b010 rd imm)] ; c.li
-                [(and (fx= imm 0) (not (fx= rs1 0))) ; c.mv
+                ;; c.li loads a signed six-bit constant into a nonzero rd.
+                [(and (fx= rs1 0) (signed6? imm)) (ci #b010 rd imm)]
+                ;; c.mv copies a nonzero source to a nonzero destination.
+                [(and (fx= imm 0) (not (fx= rs1 0)))
                  (byte-fields [13 #b100] [7 rd] [2 rs1] [0 #b10])]
+                ;; c.addi requires rd = rs1 and a nonzero signed six-bit
+                ;; immediate. Zero would encode a hint instead.
                 [(and (fx= rd rs1) (signed6? imm) (not (fx= imm 0)))
-                 (ci #b000 rd imm)] ; c.addi
+                 (ci #b000 rd imm)]
+                ;; c.addi16sp adjusts architectural sp (x2) by a nonzero
+                ;; multiple of 16 in [-512, 496]. This shares c.lui's
+                ;; funct3, but has a different immediate layout.
                 [(and (fx= rd 2) (fx= rs1 2) (fx<= -512 imm 496)
-                      (not (fx= imm 0)) (fx= (fxlogand imm 15) 0)) ; c.addi16sp
+                      (not (fx= imm 0)) (fx= (fxlogand imm 15) 0))
                  (byte-fields [13 #b011] [12 (fxlogand (ash imm -9) 1)]
                               [7 2] [6 (fxlogand (ash imm -4) 1)]
                               [5 (fxlogand (ash imm -6) 1)]
                               [3 (fxlogand (ash imm -7) 3)]
                               [2 (fxlogand (ash imm -5) 1)] [0 #b01])]
+                ;; c.addi4spn adds a nonzero multiple of four in [4, 1020]
+                ;; to architectural sp and writes a compact register.
                 [(and (fx= rs1 2) (compact? rd) (fx<= 4 imm 1020)
-                      (fx= (fxlogand imm 3) 0)) ; c.addi4spn
+                      (fx= (fxlogand imm 3) 0))
                  (byte-fields [11 (fxlogand (ash imm -4) 3)]
                               [7 (fxlogand (ash imm -6) 15)]
                               [6 (fxlogand (ash imm -2) 1)]
                               [5 (fxlogand (ash imm -3) 1)] [2 (fx- rd 8)])]
                 [else #f])]
              [(#b111)
-              (and (fx= rd rs1) (compact? rd) (signed6? imm) ; c.andi
+              ;; c.andi updates a compact register with a signed six-bit
+              ;; immediate, including zero.
+              (and (fx= rd rs1) (compact? rd) (signed6? imm)
                    (ci #b100 (fx+ rd 8) imm))]
              [(#b001 #b101)
+              ;; RV64 compressed shifts accept amounts 1 through 63;
+              ;; zero encodes a hint. Check the upper immediate bits to
+              ;; distinguish logical and arithmetic shifts.
               (let ([shamt (fxlogand imm 63)])
                 (and (fx= rd rs1) (not (fx= rd 0)) (not (fx= shamt 0))
                      (cond
-                       [(fx= funct3 #b001) ; c.slli
+                       ;; c.slli permits any nonzero rd, with rd = rs1.
+                       [(fx= funct3 #b001)
                         (and (fx= funct7 (ash shamt -5))
                              (byte-fields [12 (ash shamt -5)] [7 rd]
                                           [2 (fxlogand shamt 31)] [0 #b10]))]
-                       [else ; c.srli or c.srai
+                       ;; c.srli and c.srai require a compact rd = rs1.
+                       [else
                         (and (compact? rd) (memv (ash imm -6) '(0 16))
                              (byte-fields [13 #b100] [12 (ash shamt -5)]
                                           [10 (if (fx= (ash imm -6) 0) 0 1)]
                                           [7 (fx- rd 8)] [2 (fxlogand shamt 31)] [0 #b01]))])))]
              [else #f])]
           [(#b0110011)
+           ;; Integer register operations. Commutative operations can
+           ;; exchange sources when the destination matches rs2.
            (cond
              [(and (fx= funct7 0) (fx= funct3 0) (not (fx= rd 0)))
               (cond
-                [(and (fx= rs1 0) (not (fx= rs2 0))) ; c.mv
+                ;; Adding x0 is c.mv; either source may supply the value.
+                [(and (fx= rs1 0) (not (fx= rs2 0)))
                  (byte-fields [13 #b100] [7 rd] [2 rs2] [0 #b10])]
-                [(and (fx= rs2 0) (not (fx= rs1 0))) ; c.mv
+                [(and (fx= rs2 0) (not (fx= rs1 0)))
                  (byte-fields [13 #b100] [7 rd] [2 rs1] [0 #b10])]
-                [(and (fx= rd rs1) (not (fx= rs2 0))) ; c.add
+                ;; c.add requires a nonzero destination and source, with
+                ;; one source equal to the destination.
+                [(and (fx= rd rs1) (not (fx= rs2 0)))
                  (byte-fields [13 #b100] [12 1] [7 rd] [2 rs2] [0 #b10])]
                 [(and (fx= rd rs2) (not (fx= rs1 0)))
                  (byte-fields [13 #b100] [12 1] [7 rd] [2 rs1] [0 #b10])]
                 [else #f])]
+             ;; c.sub, c.xor, c.or, and c.and require compact registers.
+             ;; c.sub must preserve source order; only the logical
+             ;; operations may exchange their sources here.
              [(and (compact? rd)
                    (or (and (fx= rd rs1) (compact? rs2))
                        (and (fx= rd rs2) (compact? rs1) (fx= funct7 0)
@@ -1025,6 +1062,10 @@
                                      [5 op] [2 (fx- (if (fx= rd rs1) rs2 rs1) 8)] [0 #b01])))]
              [else #f])]
           [(#b0000011 #b0000111 #b0100011 #b0100111)
+           ;; Compress lw, ld, fld, sw, sd, and fsd. Store immediates are
+           ;; split between the rd and funct7 fields of the 32-bit form.
+           ;; Offsets must be unsigned and aligned to the access size.
+           ;; RV64 has no compressed flw/fsw or unsigned word load.
            (let* ([store? (fxlogtest opcode #b0100000)]
                   [fp? (fxlogtest opcode #b0000100)]
                   [r (if store? rs2 rd)]
@@ -1037,6 +1078,11 @@
              (and (or wide? (and (not fp?) (fx= funct3 #b010)))
                   (fx>= n 0) (fx= (fxlogand n (if wide? 7 3)) 0)
                   (cond
+                    ;; c.lw/c.sw use compact integer registers and offsets
+                    ;; 0 through 124 in steps of four. c.ld/c.sd and
+                    ;; c.fld/c.fsd use offsets 0 through 248 in steps of
+                    ;; eight; their data register is integer or floating
+                    ;; point, respectively. The base is always integer.
                     [(and (compact? r) (compact? rs1) (fx<= n (if wide? 248 124)))
                      (byte-fields [13 (if store? (fx+ cf #b100) cf)]
                                   [10 (fxlogand (ash n -3) 7)] [7 (fx- rs1 8)]
@@ -1045,6 +1091,10 @@
                                          (fx+ (fxsll (fxlogand (ash n -2) 1) 1)
                                               (fxlogand (ash n -6) 1)))]
                                   [2 (fx- r 8)])]
+                    ;; With architectural sp as the base, c.lwsp/c.swsp
+                    ;; allow offsets through 252; c.ldsp/c.sdsp and
+                    ;; c.fldsp/c.fsdsp allow offsets through 504. These
+                    ;; forms retain all five bits of the data register.
                     [(and (fx= rs1 2) (fx<= n (if wide? 504 252)))
                      (if store?
                          (byte-fields [13 (fx+ cf #b100)]
@@ -1054,6 +1104,8 @@
                                              (fx+ (fxsll (fxlogand (ash n -2) 15) 2)
                                                   (fxlogand (ash n -6) 3)))]
                                       [2 r] [0 #b10])
+                         ;; Integer stack loads reserve rd = x0. Floating
+                         ;; stack loads allow f0; stores allow x0 or f0.
                          (and (or fp? (not (fx= r 0)))
                               (byte-fields [13 cf] [12 (fxlogand (ash n -5) 1)] [7 r]
                                            [2 (if wide?
@@ -1064,12 +1116,20 @@
                                            [0 #b10])))]
                     [else #f])))]
           [(#b0110111)
+           ;; c.lui has a nonzero signed six-bit upper immediate. x0 is
+           ;; a hint and x2 selects c.addi16sp instead, so exclude both.
            (let ([n (ash instr -12)])
              (and (not (memv rd '(0 2))) (signed6? n) (not (fx= n 0)) (ci #b011 rd n)))]
           [(#b1100111)
+           ;; c.jr is jalr x0, rs1, 0; c.jalr is jalr x1, rs1, 0.
+           ;; Both require a nonzero source register. c.jalr writes the
+           ;; address after its two-byte encoding to the link register.
            (and (fx= funct3 0) (fx= imm 0) (not (fx= rs1 0)) (memv rd '(0 1))
                 (byte-fields [13 #b100] [12 rd] [7 rs1] [0 #b10]))]
           [(#b1101111)
+           ;; c.j is jal x0 with an even displacement in [-2048, 2046].
+           ;; Reassemble the signed J immediate before scattering its
+           ;; bits into the compressed form. RV64 has no c.jal form.
            (let* ([n (byte-fields [20 (bitwise-bit-field instr 31 32)]
                                   [12 (bitwise-bit-field instr 12 20)]
                                   [11 (bitwise-bit-field instr 20 21)]
