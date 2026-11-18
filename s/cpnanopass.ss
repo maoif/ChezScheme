@@ -8279,40 +8279,55 @@
                   [(#f) #f]
                   [else
                    (asm-nop)]))
-              (define (align-code c* offset align)
-                (if (aligned? (fx- offset align))
-                    (values c* offset)
-                    (align-code (cons align-chunk c*) (fx+ offset (chunk-size align-chunk)) align)))
               (define (munge-pass c* iteration)
                 (define get-local-label-offset
                   (lambda (l)
                     (local-label-iteration-set! l iteration)
                     (local-label-offset l)))
-                (let f ([rc* (reverse c*)] [c* '()] [offset 0] [align #f])
+                (let f ([rc* (reverse c*)] [c* '()] [offset 0] [align 'none])
                   (if (null? rc*)
-                      (if (or munge-recur? (not align))
-                          (values c* offset)
-                          (align-code c* offset align))
+                      (constant-case align-rpheader
+                        [(#f) (values c* offset)]
+                        [else (cond
+                                [(or munge-recur?
+                                     (eq? align 'none)
+                                     (aligned? (fx- offset align)))
+                                 (values c* offset)]
+                                [else
+                                 ;; add no-op chunk for alignment:
+                                 (f rc* (cons align-chunk c*) (fx+ offset (chunk-size align-chunk)) align)])])
                       (let ([c (car rc*)] [rc* (cdr rc*)])
                         (cond
                           [(eq? c align-chunk)
-                           ;; drop alignment chunks created by an earlier pass
+                           ;; drop alignment chunk created by an earlier pass
                            (f rc* c* offset align)]
                           [(lchunk? c)
                            (let ([l (lchunk-l c)] [offset (fx+ offset (chunk-size c))])
-                             (let-values ([(c* offset)
-                                           (if (and align (aligned-label? l))
-                                               (align-code c* offset align)
-                                               (values c* offset))])
+                             (let* ([align-bytes (constant-case align-rpheader
+                                                   [(#f) #f]
+                                                   [else (cond
+                                                           [(not (aligned-label? l)) #f]
+                                                           [(eq? align 'none) #f]
+                                                           [else (fxand (fx- align offset) (fx- (constant ptr-bytes) 1))])])]
+                                    [offset (if align-bytes
+                                                (fx+ offset align-bytes)
+                                                offset)])
                                (when l
                                  (unless (eq? (get-local-label-offset l) offset)
                                    (local-label-offset-set! l offset)
                                    (when (fx= (local-label-iteration l) iteration)
                                      (set! munge-recur? #t))))
-                               (f rc* (cons c c*) offset
+                               (f rc*
+                                  (cons c (if align-bytes
+                                              (append (make-list (fxdiv align-bytes (chunk-size align-chunk)) align-chunk) c*)
+                                              c*))
+                                  offset
                                   (constant-case align-rpheader
-                                    [(#f) #f]
-                                    [else (if (and (not align) (aligned-label? l)) offset align)]))))]
+                                    [(#f) 'none]
+                                    [else
+                                     (cond
+                                       [(or align-bytes (not (aligned-label? l))) align]
+                                       [else offset])]))))]
                           [(gchunk? c)
                            (let ([l (gchunk-l c)])
                              (let ([c (if (and (eq? (get-local-label-offset l) (gchunk-laddr c))
