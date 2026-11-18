@@ -922,10 +922,10 @@
   (define-syntax build
     (syntax-rules ()
       [(_ x e)
-       (and (memq (datum x) '(word long quad)) (integer? (datum e)))
+       (and (memq (datum x) '(long quad)) (integer? (datum e)))
        (quote (x . e))]
       [(_ x e)
-       (memq (datum x) '(word long quad))
+       (memq (datum x) '(long quad))
        (cons 'x e)]))
 
   (define-syntax byte-fields
