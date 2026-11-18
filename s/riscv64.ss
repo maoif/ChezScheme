@@ -972,7 +972,7 @@
            (case funct3
              [(#b000)
               (cond
-                ;; `c.nop` is `addi x0, x0, 0`. Leave other writes to `x0`
+                ;; `c.nop` is `addi, x0, x0, 0`. Leave other writes to `x0`
                 ;; uncompressed instead of emitting compressed hints.
                 [(and (fx= rd 0) (fx= rs1 0) (fx= imm 0)) #x0001]
                 [(fx= rd 0) #f]
@@ -1121,13 +1121,13 @@
            (let ([n (ash instr -12)])
              (and (not (memv rd '(0 2))) (signed6? n) (not (fx= n 0)) (ci #b011 rd n)))]
           [(#b1100111)
-           ;; `c.jr` is `jalr x0, rs1, 0`; `c.jalr` is `jalr x1, rs1, 0`.
+           ;; `c.jr` is `jalr, x0, rs1, 0`; `c.jalr` is `jalr, x1, rs1, 0`.
            ;; Both require a nonzero source register. `c.jalr` writes the
            ;; address after its two-byte encoding to the link register.
            (and (fx= funct3 0) (fx= imm 0) (not (fx= rs1 0)) (memv rd '(0 1))
                 (byte-fields [13 #b100] [12 rd] [7 rs1] [0 #b10]))]
           [(#b1101111)
-           ;; `c.j` is `jal` `x0` with an even displacement in [-2048, 2046].
+           ;; `c.j` is `jal, x0, n` with an even `n` in [-2048, 2046].
            ;; Reassemble the signed J immediate before scattering its
            ;; bits into the compressed form. RV64 has no `c.jal` form.
            (let* ([n (byte-fields [20 (bitwise-bit-field instr 31 32)]
