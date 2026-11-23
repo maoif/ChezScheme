@@ -263,6 +263,14 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (clz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
+
+  (define-instruction value (ctz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
+
   (define-instruction value (move)
     [(op (z mem) (x ur))
      `(set! ,(make-live-info) ,z ,x)]
@@ -619,6 +627,7 @@
 
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
+                    asm-clz asm-ctz
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt asm-fpcastto asm-fpcastfrom
                     asm-single->double asm-double->single
@@ -651,6 +660,8 @@
          (with-syntax ([emit-op (construct-name #'k "asmop-" #'op)])
                       #'(emit-op op x ...))])))
 
+  (define-op clz.d   two-R-op #b1001)
+  (define-op ctz.d   two-R-op #b1011)
   (define-op revb.2h two-R-op #b1100)
   (define-op revb.2w two-R-op #b1110)
   (define-op revb.d  two-R-op #b1111)
@@ -1183,6 +1194,16 @@
       (Trivit (dest src)
               (emit addi.d %scratch0 %real-zero -1
                     (emit xor dest src %scratch0 code*)))))
+
+  (define asm-clz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit clz.d dest src code*))))
+
+  (define asm-ctz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit ctz.d dest src code*))))
 
   (define-who asm-load
     (lambda (type)

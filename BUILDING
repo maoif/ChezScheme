@@ -62,6 +62,18 @@ Uninstalling on Unix-like systems is as simple as running:
   sudo make uninstall
 
 
+RISC-V RVA23
+
+The RV64 native targets require the RVA23U64 profile. On RISC-V Linux,
+`./configure` selects `trv64le`, or `rv64le` with `--nothreads`.
+The FreeBSD, OpenBSD and NetBSD targets use the `fb`, `ob` and `nb`
+suffixes in place of `le`.
+
+Chez Scheme emits RVA23 instructions and the C build uses the LP64D ABI.
+Rebuild boot files and compiled Scheme objects from earlier RV64G builds.
+Their machine IDs differ from the RVA23 IDs even though the names match.
+
+
 WAYS TO GET BOOT FILES
 
 1. The portable boot files are used by default. You can use

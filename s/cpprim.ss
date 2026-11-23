@@ -2719,10 +2719,11 @@
               (let ([bits (%inline logxor ,arg
                             ,(%inline sra ,arg (immediate ,(sub1 (constant ptr-bits)))))])
                 (bind #t (bits)
-                  `(if ,(%inline eq? ,bits (immediate 0))
-                       (immediate ,(fix 0))
-                       ,(build-fix
-                          (%inline - (immediate ,(constant ptr-bits)) ,(%inline clz ,bits))))))))]
+                  (let ([length (build-fix
+                                  (%inline - (immediate ,(constant ptr-bits)) ,(%inline clz ,bits)))])
+                    (constant-case architecture
+                      [(riscv64) length] ; CLZ returns the word width for zero.
+                      [else `(if ,(%inline eq? ,bits (immediate 0)) (immediate ,(fix 0)) ,length)]))))))]
          [else (build-fxlength/portable e)])])
 
     (define-inline 3 fxfirst-bit-set

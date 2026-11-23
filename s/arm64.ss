@@ -293,6 +293,18 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (clz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
+
+  (define-instruction value (ctz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
+
+  (define-instruction value (cls)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-cls ,src))])
+
   (define-instruction value (sll srl sra)
     [(op (z ur) (x ur) (y imm-constant ur))
      `(set! ,(make-live-info) ,z (asm ,info ,(asm-shiftop op) ,x ,y))])
@@ -732,6 +744,7 @@
                      asm-move asm-move/extend asm-load asm-store asm-swap asm-library-call asm-library-call! asm-library-jump
                      asm-mul asm-smulh asm-div asm-add asm-sub asm-logand asm-logor asm-logxor
                      asm-pop-multiple asm-shiftop asm-logand asm-lognot asm-cmp/asr63 asm-popcount
+                     asm-clz asm-ctz asm-cls
                      asm-logtest asm-fp-relop asm-relop asm-push-multiple asm-push-fpmultiple asm-pop-fpmultiple
                      asm-indirect-jump asm-literal-jump
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
@@ -854,6 +867,10 @@
   (define-op smulh mul-op  #b010)
 
   (define-op sdiv  div-op)
+
+  (define-op rbit  data-processing-1-source-op #b000000)
+  (define-op clz   data-processing-1-source-op #b000100)
+  (define-op cls   data-processing-1-source-op #b000101)
 
   (define-op cnt    cnt-op)
   (define-op addv.b addv.b-op)
@@ -1162,6 +1179,14 @@
         [16 (ax-ea-reg-code src1)]
         [10 #b000011]
         [5  (ax-ea-reg-code src0)]
+        [0  (ax-ea-reg-code dest)])))
+
+  (define data-processing-1-source-op
+    (lambda (op opcode dest src code*)
+      (emit-code (op dest src code*)
+        [16 #xDAC0]
+        [10 opcode]
+        [5  (ax-ea-reg-code src)]
         [0  (ax-ea-reg-code dest)])))
 
   (define cnt-op
@@ -2448,6 +2473,22 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit mvn dest src code*))))
+
+  (define asm-clz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit clz dest src code*))))
+
+  (define asm-ctz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit rbit dest src
+          (emit clz dest dest code*)))))
+
+  (define asm-cls
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit cls dest src code*))))
 
   (define asm-popcount
     (lambda (code* dest src tmp)

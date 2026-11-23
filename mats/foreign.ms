@@ -193,7 +193,7 @@
 (printf "found ~s in ~s\n" foreign1.so (source-directories))
 
 (machine-case
-  [(i3ob ti3ob a6ob ta6ob a6s2 ta6s2 i3s2 ti3s2 i3qnx ti3qnx)
+  [(i3ob ti3ob a6ob ta6ob a6s2 ta6s2 i3s2 ti3s2 i3qnx ti3qnx rv64ob trv64ob)
    (mat load-shared-object
       (file-exists? foreign1.so)
       (begin (load-shared-object foreign1.so) #t)
@@ -219,7 +219,7 @@
       (error? (load-shared-object 3))
     )
    ]
-  [(i3fb ti3fb a6fb ta6fb)
+  [(i3fb ti3fb a6fb ta6fb rv64fb trv64fb)
    (mat load-shared-object
       (file-exists? foreign1.so)
       (begin (load-shared-object foreign1.so) #t)
@@ -227,7 +227,7 @@
       (error? (load-shared-object 3))
     )
    ]
-  [(i3nb ti3nb a6nb ta6nb)
+  [(i3nb ti3nb a6nb ta6nb rv64nb trv64nb)
    (mat load-shared-object
       (file-exists? foreign1.so)
       (begin (load-shared-object foreign1.so) #t)
@@ -3606,14 +3606,15 @@
   (begin
     (define load-libc
       (machine-case
-        [(i3ob ti3ob a6ob ta6ob a6s2 ta6s2 i3s2 ti3s2 i3qnx ti3qnx i3nb ti3nb a6nb ta6nb)
+        [(i3ob ti3ob a6ob ta6ob a6s2 ta6s2 i3s2 ti3s2 i3qnx ti3qnx i3nb ti3nb a6nb ta6nb
+               rv64ob trv64ob rv64nb trv64nb)
          '(load-shared-object "libc.so")]
         [(i3le ti3le a6le ta6le arm32le tarm32le arm64le tarm64le ppc32le tppc32le
                rv64le trv64le la64le tla64le armv7le tarmv7le)
          '(load-shared-object "libc.so.6")]
 	[(a6hk ta6hk)
 	 '(load-shared-object "libroot.so")]
-        [(i3fb ti3fb a6fb ta6fb)
+        [(i3fb ti3fb a6fb ta6fb rv64fb trv64fb)
          '(load-shared-object "libc.so.7")]
         [(i3nt ti3nt a6nt ta6nt arm64nt tarm64nt)
          '(load-shared-object "msvcrt.dll")]

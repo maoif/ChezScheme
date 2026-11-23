@@ -246,6 +246,14 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (clz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
+
+  (define-instruction value (ctz)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
+
   (define-instruction value (move)
     [(op (z mem) (x ur))
      `(set! ,(make-live-info) ,z ,x)]
@@ -625,6 +633,7 @@
 ;;; SSECTION 3: assembler
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
+                    asm-clz asm-ctz
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt
                     asm-cas asm-relop asm-fp-relop asm-fpop-2 asm-fpfma asm-save-flrv asm-restore-flrv
@@ -711,6 +720,9 @@
   (define-op srli shift-imm-op #b0010011 #b101 #b000000)
   (define-op srai shift-imm-op #b0010011 #b101 #b010000)
 
+  (define-op clz scan-op #x600)
+  (define-op ctz scan-op #x601)
+
   (define-op fsw store-op #b0100111 #b010)
   (define-op fsd store-op #b0100111 #b011)
   (define-op sd  store-op #b0100011 #b011)
@@ -780,6 +792,15 @@
                  [12 funct3]
                  [7 (ax-ea-reg-code dest)]
                  [0 opcode])))
+
+  (define scan-op
+    (lambda (op funct12 dest src code*)
+      (emit-code (op dest src code*)
+                 [20 funct12]
+                 [15 (ax-ea-reg-code src)]
+                 [12 #b001]
+                 [7 (ax-ea-reg-code dest)]
+                 [0 #b0010011])))
 
   (define store-op
     (lambda (op opcode funct3 src base imm12 code*)
@@ -1080,6 +1101,16 @@
     (lambda (code* dest src)
       (Trivit (dest src)
               (emit xori dest src -1 code*))))
+
+  (define asm-clz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit clz dest src code*))))
+
+  (define asm-ctz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit ctz dest src code*))))
 
   (define-who asm-load
     (lambda (type)

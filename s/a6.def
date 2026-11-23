@@ -11,6 +11,7 @@
 (define-constant unaligned-integers #t)
 (define-constant integer-divide-instruction #t)
 (define-constant popcount-instruction #t)
+(define-constant bit-scan-instructions #t)
 (define-constant fpround-instruction #t)
 
 (include "a6-options.def")

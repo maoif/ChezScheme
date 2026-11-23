@@ -718,8 +718,8 @@
   (declare-primitive -/eq value #f)
   (declare-primitive -/pos value #f)
   (declare-primitive asmlibcall value #f)
-  ;; Raw word scans. CLZ and CTZ require a nonzero input; CLS does not
-  ;; count the sign bit itself.
+  ;; Raw word scans. x86 CLZ and CTZ require a nonzero input. CLS does
+  ;; not count the sign bit itself.
   (declare-primitive clz value #t)
   (declare-primitive ctz value #t)
   (declare-primitive cls value #t)

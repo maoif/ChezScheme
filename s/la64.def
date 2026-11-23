@@ -9,3 +9,4 @@
 (define-constant unaligned-floats #t)
 (define-constant unaligned-integers #t)
 (define-constant integer-divide-instruction #t)
+(define-constant bit-scan-instructions #t)

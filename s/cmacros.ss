@@ -363,16 +363,18 @@
   (lambda (x)
     (syntax-case x ()
       [(_ name ...)
-       (with-syntax ([(value ...) (enumerate (datum (name ...)))]
-                     [(cname ...)
-                      (map (lambda (name)
-                             (construct-name name "machine-type-" name))
-                           #'(name ...))])
-         #'(begin
-             (define-constant cname value) ...
-             (define-constant machine-type-alist '((value . name) ...))
-             (define-constant machine-type-limit (+ (max value ...) 1))))])))
+       (with-syntax ([((active-name value) ...)
+                      (filter (lambda (entry) (syntax->datum (car entry)))
+                        (map list #'(name ...) (enumerate (datum (name ...)))))])
+         (with-syntax ([(cname ...)
+                        (map (lambda (name) (construct-name name "machine-type-" name))
+                             #'(active-name ...))])
+           #'(begin
+               (define-constant cname value) ...
+               (define-constant machine-type-alist '((value . active-name) ...))
+               (define-constant machine-type-limit (+ (max value ...) 1)))))])))
 
+;; Reserve the old RV64G IDs so older runtimes reject RVA23 code.
 (define-machine-types
   any
   pb        tpb
@@ -414,13 +416,17 @@
   arm64fb   tarm64fb
   arm64ob   tarm64ob
   arm64nb   tarm64nb
+  #f        #f
+  #f        #f
+  #f        #f
+  #f        #f
+  la64le    tla64le
+  a6hk      ta6hk
+  armv7le    tarmv7le
   rv64le    trv64le
   rv64fb    trv64fb
   rv64ob    trv64ob
   rv64nb    trv64nb
-  la64le    tla64le
-  a6hk      ta6hk
-  armv7le    tarmv7le
 )
 
 (include "machine.def")

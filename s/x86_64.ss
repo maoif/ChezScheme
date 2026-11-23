@@ -497,6 +497,14 @@
          (go info op t t y)
          `(set! ,(make-live-info) ,z ,t)))])
 
+  (define-instruction value (clz)
+    [(op (dest ur) (src ur mem))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
+
+  (define-instruction value (ctz)
+    [(op (dest ur) (src ur mem))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
+
   (define-instruction value popcount
     [(op (z ur) (x ur mem))
      (constant-case x86-64-level
@@ -928,6 +936,7 @@
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
                      asm-lea1 asm-lea2 asm-indirect-call asm-condition-code
                      asm-fl-cvt asm-store-single asm-load-single asm-fpt asm-fptrunc asm-div asm-popcount
+                     asm-clz asm-ctz
                      asm-exchange asm-pause asm-debug asm-locked-incr asm-locked-decr asm-locked-cmpxchg
                      asm-fpsqrt asm-fpround asm-fpfma asm-fpop-2 asm-fpminmax asm-fpmove asm-fpmove128 asm-fpcast asm-fpsingle
                      asm-c-simple-call
@@ -1047,6 +1056,8 @@
   #;(define-op mulsax (*) unary-op   #b1111011  #b100)
   (define-op muls mulq-op #b10101111)
   (define-op mulsi muliq-op    #b01101001)
+  (define-op bsrq mulq-op #xBD)
+  (define-op bsfq mulq-op #xBC)
 
   (define-op lea       quad-op     #b10001101)
 
@@ -2168,6 +2179,17 @@
     (lambda (code* dest src0 src1)
       (Trivit (dest src0 src1)
         (emit mulsi src1 src0 dest code*))))
+
+  (define asm-clz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit bsrq src dest
+          (emit xori '(imm 63) dest code*)))))
+
+  (define asm-ctz
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit bsfq src dest code*))))
 
   (define asm-popcount
     (lambda (inline?)

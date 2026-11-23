@@ -271,7 +271,9 @@ if [ "$unixsuffix" != "" ] ; then
             m32=armv7${unixsuffix}
             tm32=tarmv7${unixsuffix}
         fi
-    elif uname -m | grep 'riscv64' > /dev/null 2>&1 ; then
+    # FreeBSD reports "riscv" with uname -m and "riscv64" with uname -p.
+    elif uname -m | grep 'riscv64' > /dev/null 2>&1 ||
+         { [ "$CONFIG_UNAME" = FreeBSD ] && [ "$(uname -p)" = riscv64 ]; }; then
         m32=""
         m64=rv64${unixsuffix}
         tm32=""
@@ -566,6 +568,8 @@ if [ "$bits" = "" ] ; then
   # FreeBSD `uname -m` produces "powerpc" for all PowerPC variants
   elif uname -p | egrep 'powerpc64' > /dev/null 2>&1 ; then
     bits=64
+  elif [ "$CONFIG_UNAME" = FreeBSD ] && [ "$(uname -p)" = riscv64 ]; then
+    bits=64
   else
     bits=32
   fi
@@ -788,6 +792,9 @@ if [ "$help" = "yes" ]; then
   echo "  3 includes FMA and AVX instructions"
   echo "  4 includes AVX512 instructions"
   echo ""
+  echo "The RV64 targets require RVA23U64. On Linux, the default target"
+  echo "is trv64le, or rv64le with --nothreads."
+  echo ""
   echo "Available machine types: $machs"
   echo ""
   echo "Examples:"
@@ -808,6 +815,13 @@ if [ "$help" = "yes" ]; then
   echo ""
   exit 0
 fi
+
+case "$m" in
+    rv64rva23??|trv64rva23??)
+        echo "Use ${m%rva23??}${m#*rva23} for RVA23U64." >&2
+        exit 1
+        ;;
+esac
 
 optFlags=-O2
 

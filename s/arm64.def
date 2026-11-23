@@ -11,4 +11,6 @@
 (define-constant unaligned-integers #t)
 (define-constant integer-divide-instruction #t)
 (define-constant popcount-instruction #t)
+(define-constant bit-scan-instructions #t)
+(define-constant count-leading-sign-bits-instruction #t)
 (define-constant fpround-instruction #t)
