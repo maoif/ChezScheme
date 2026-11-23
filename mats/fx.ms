@@ -1861,6 +1861,12 @@
   (eqv? (fxbit-count #xabcd) 10)
   (eqv? (fxbit-count -1) -1)
   (eqv? (fxbit-count -10) -3)
+  (or (fx<= (fixnum-width) 32)
+      (let ([bits (black-box #xffffffff)])
+        (and (fx= (fxpopcount16 (fxand bits #xffff)) 16)
+             (fx= (fxpopcount32 bits) 32)
+             (fx= (fxpopcount bits) 32)
+             (fx= (fxbit-count (fxnot bits)) -33))))
   (equal?
     (map fxbit-count '(0 1 2 3 4 5 6 7 8 9 10))
     '(0 1 1 2 1 2 2 3 1 2 2))

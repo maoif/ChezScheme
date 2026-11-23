@@ -254,6 +254,10 @@
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
 
+  (define-instruction value popcount
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-popcount ,src))])
+
   (define-instruction value (move)
     [(op (z mem) (x ur))
      `(set! ,(make-live-info) ,z ,x)]
@@ -633,7 +637,7 @@
 ;;; SSECTION 3: assembler
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
-                    asm-clz asm-ctz
+                    asm-clz asm-ctz asm-popcount
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt
                     asm-cas asm-relop asm-fp-relop asm-fpop-2 asm-fpfma asm-save-flrv asm-restore-flrv
@@ -722,6 +726,7 @@
 
   (define-op clz scan-op #x600)
   (define-op ctz scan-op #x601)
+  (define-op cpop scan-op #x602)
 
   (define-op fsw store-op #b0100111 #b010)
   (define-op fsd store-op #b0100111 #b011)
@@ -1111,6 +1116,12 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit ctz dest src code*))))
+
+  ;; The fixnum tag can move 32-bit input data above bit 31.
+  (define asm-popcount
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit cpop dest src code*))))
 
   (define-who asm-load
     (lambda (type)

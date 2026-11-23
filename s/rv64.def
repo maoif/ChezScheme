@@ -11,3 +11,4 @@
 (define-constant align-rpheader #t)
 (define-constant integer-divide-instruction #t)
 (define-constant bit-scan-instructions #t)
+(define-constant popcount-instruction #t)
