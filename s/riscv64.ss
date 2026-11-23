@@ -229,6 +229,10 @@
           [(logand) asm-logand]
           [(logor) asm-logor]
           [(logxor) asm-logxor]
+          [(logand-not) asm-logand-not]
+          [(bit-extract) asm-bit-extract]
+          [(bit-set) asm-bit-set]
+          [(bit-clear) asm-bit-clear]
           [(sll) asm-sll]
           [(srl) asm-srl]
           [(sra) asm-sra]
@@ -236,6 +240,10 @@
 
     (define-instruction value (logand logor logxor)
       [(op (z ur) (x ur) (y imm12 ur))
+       `(set! ,(make-live-info) ,z (asm ,info ,(select-op op) ,x ,y))])
+
+    (define-instruction value (logand-not bit-extract bit-set bit-clear)
+      [(op (z ur) (x ur) (y ur))
        `(set! ,(make-live-info) ,z (asm ,info ,(select-op op) ,x ,y))])
 
     (define-instruction value (sll srl sra)
@@ -636,6 +644,7 @@
 
 ;;; SSECTION 3: assembler
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
+                    asm-logand-not asm-bit-extract asm-bit-set asm-bit-clear
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
                     asm-clz asm-ctz asm-popcount
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
@@ -680,6 +689,10 @@
   (define-op and bin-op #b0110011 #b111 #b0000000)
   (define-op or  bin-op #b0110011 #b110 #b0000000)
   (define-op xor bin-op #b0110011 #b100 #b0000000)
+  (define-op andn bin-op #b0110011 #b111 #b0100000)
+  (define-op bext bin-op #b0110011 #b101 #b0100100)
+  (define-op bset bin-op #b0110011 #b001 #b0010100)
+  (define-op bclr bin-op #b0110011 #b001 #b0100100)
   (define-op slt bin-op #b0110011 #b010 #b0000000)
   (define-op sltu bin-op #b0110011 #b011 #b0000000)
   (define-op sll  bin-op #b0110011 #b001 #b0000000)
@@ -1106,6 +1119,18 @@
           (define asm-sll (gen-op sll slli))
           (define asm-srl (gen-op srl srli))
           (define asm-sra (gen-op sra srai)))
+
+  (module (asm-logand-not asm-bit-extract asm-bit-set asm-bit-clear)
+    (define-syntax gen-reg-op
+      (syntax-rules ()
+        [(_ op)
+         (lambda (code* dest src0 src1)
+           (Trivit (dest src0 src1)
+             (emit op dest src0 src1 code*)))]))
+    (define asm-logand-not (gen-reg-op andn))
+    (define asm-bit-extract (gen-reg-op bext))
+    (define asm-bit-set (gen-reg-op bset))
+    (define asm-bit-clear (gen-reg-op bclr)))
 
   (define asm-lognot
     (lambda (code* dest src)

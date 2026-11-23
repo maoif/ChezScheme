@@ -263,6 +263,10 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (logand-not)
+    [(op (dest ur) (src ur) (mask ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-logand-not ,src ,mask))])
+
   (define-instruction value (clz)
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
@@ -649,6 +653,7 @@
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
                     asm-clz asm-ctz asm-reverse-bits asm-rotate-right32
+                    asm-logand-not
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt asm-fpcastto asm-fpcastfrom
                     asm-single->double asm-double->single
@@ -715,6 +720,7 @@
   (define-op slt  three-R-op #b100100)
   (define-op sltu three-R-op #b100101)
   (define-op and  three-R-op #b101001)
+  (define-op andn three-R-op #b101101)
   (define-op or   three-R-op #b101010)
   (define-op xor  three-R-op #b101011)
   (define-op sll.d three-R-op #b110001)
@@ -1259,6 +1265,11 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit clz.d dest src code*))))
+
+  (define asm-logand-not
+    (lambda (code* dest src mask)
+      (Trivit (dest src mask)
+        (emit andn dest src mask code*))))
 
   (define asm-ctz
     (lambda (code* dest src)

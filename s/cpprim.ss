@@ -538,6 +538,31 @@
     (define build-not
       (lambda (e)
         `(if ,e ,(%constant sfalse) ,(%constant strue))))
+    (define build-fixnum-bit-index
+      (lambda (index)
+        (%inline + ,(build-unfix index) (immediate ,(constant fixnum-offset)))))
+    (define build-fxlogbit0
+      (lambda (word index)
+        (if (constant indexed-bit-instructions)
+            (%inline bit-clear ,word ,(build-fixnum-bit-index index))
+            (%inline logand ,word
+              ,(%inline lognot
+                 ,(%inline sll (immediate ,(fix 1)) ,(build-unfix index)))))))
+    (define build-fxlogbit1
+      (lambda (word index)
+        (if (constant indexed-bit-instructions)
+            (%inline bit-set ,word ,(build-fixnum-bit-index index))
+            (%inline logor ,word
+              ,(%inline sll (immediate ,(fix 1)) ,(build-unfix index))))))
+    (define build-fxlogbit?
+      (lambda (index word)
+        (if (constant indexed-bit-instructions)
+            (build-not (%inline eq?
+                         ,(%inline bit-extract ,word ,(build-fixnum-bit-index index))
+                         (immediate 0)))
+            (%inline logtest
+               ,(%inline sra ,word ,(build-unfix index))
+               (immediate ,(fix 1))))))
     (define build-null?
       (lambda (e)
         (%type-check mask-nil snil ,e)))
@@ -2359,18 +2384,13 @@
           (if (constant? (lambda (x) (and (fixnum? x) ($fxu< x (fx- (constant fixnum-bits) 1)))) e2)
               (%inline logand ,e1
                 (immediate ,(fix (lognot (ash 1 (constant-value e2))))))
-              (%inline logand ,e1
-                ,(%inline lognot
-                   ,(%inline sll (immediate ,(fix 1))
-                      ,(build-unfix e2)))))))
+              (build-fxlogbit0 e1 e2))))
       (define dofxlogbit1
         (lambda (e1 e2)
           (if (constant? (lambda (x) (and (fixnum? x) ($fxu< x (fx- (constant fixnum-bits) 1)))) e2)
               (%inline logor ,e1
                  (immediate ,(fix (ash 1 (constant-value e2)))))
-              (%inline logor ,e1
-                 ,(%inline sll (immediate ,(fix 1))
-                   ,(build-unfix e2))))))
+              (build-fxlogbit1 e1 e2))))
       (define-inline 3 fxlogbit0
         [(e1 e2) (dofxlogbit0 e2 e1)])
       (define-inline 3 fxlogbit1
@@ -2396,10 +2416,7 @@
                 `(if ,(build-and
                         (build-fixnums? (list e1 e2))
                         (%inline u< ,e2 (immediate ,(fix (fx- (constant fixnum-bits) 1)))))
-                     ,(%inline logand ,e1
-                       ,(%inline lognot
-                         ,(%inline sll (immediate ,(fix 1))
-                           ,(build-unfix e2))))
+                     ,(build-fxlogbit0 e1 e2)
                      ,(libcall e1 e2))))))
       (define dofxlogbit1
         (lambda (e1 e2 libcall)
@@ -2413,9 +2430,7 @@
                 `(if ,(build-and
                         (build-fixnums? (list e1 e2))
                         (%inline u< ,e2 (immediate ,(fix (fx- (constant fixnum-bits) 1)))))
-                     ,(%inline logor ,e1
-                        ,(%inline sll (immediate ,(fix 1))
-                           ,(build-unfix e2)))
+                     ,(build-fxlogbit1 e1 e2)
                      ,(libcall e1 e2))))))
       (define-inline 2 fxlogbit0
         [(e1 e2) (dofxlogbit0 e2 e1
@@ -2513,16 +2528,12 @@
              (bind #t (e1)
                `(if ,(%inline < (immediate ,(fix (fx- (constant fixnum-bits) 2))) ,e1)
                     ,(if (< (constant-value e2) 0) (%constant strue) (%constant sfalse))
-                    ,(%inline logtest
-                       ,(%inline sra ,e2 ,(build-unfix e1))
-                       (immediate ,(fix 1)))))]
+                    ,(build-fxlogbit? e1 e2)))]
             [else
              (bind #t (e1 e2)
                `(if ,(%inline < (immediate ,(fix (fx- (constant fixnum-bits) 2))) ,e1)
                     ,(%inline < ,e2 (immediate ,(fix 0)))
-                    ,(%inline logtest
-                       ,(%inline sra ,e2 ,(build-unfix e1))
-                       (immediate ,(fix 1)))))])))
+                    ,(build-fxlogbit? e1 e2)))])))
 
       (define-inline 3 fxbit-set?
         [(e1 e2) (dofxlogbit? e2 e1)])
@@ -2550,9 +2561,7 @@
                `(if ,(build-and
                        (build-fixnums? (list e1 e2))
                        (%inline u< ,e1 (immediate ,(fix (constant fixnum-bits)))))
-                    ,(%inline logtest
-                       ,(%inline sra ,e2 ,(build-unfix e1))
-                       (immediate ,(fix 1)))
+                    ,(build-fxlogbit? e1 e2)
                     ,(libcall e1 e2)))])))
 
       (define-inline 2 fxbit-set?
@@ -2616,12 +2625,13 @@
       [(e1 . e*) (reduce src sexpr moi e1 e*)])
 
     (define-inline 3 fxif
-      [(e1 e2 e3)
-       (bind #t (e1)
-         (%inline logor
-            ,(%inline logand ,e2 ,e1)
-            ,(%inline logand ,e3
-              ,(%inline lognot ,e1))))])
+      [(mask yes no)
+       (bind #t (mask)
+          (%inline logor
+             ,(%inline logand ,yes ,mask)
+             ,(if (constant complemented-logic-instructions)
+                  (%inline logand-not ,no ,mask)
+                  (%inline logand ,no ,(%inline lognot ,mask)))))])
 
     (define-inline 3 fxbit-field
       [(e1 e2 e3)

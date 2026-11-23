@@ -12,3 +12,5 @@
 (define-constant integer-divide-instruction #t)
 (define-constant bit-scan-instructions #t)
 (define-constant popcount-instruction #t)
+(define-constant complemented-logic-instructions #t)
+(define-constant indexed-bit-instructions #t)

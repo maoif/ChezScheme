@@ -51,3 +51,5 @@
 (define-constant-default sqrt-instruction #f)
 (define-constant-default fence-instruction #f)
 (define-constant-default software-floating-point #f)
+(define-constant-default complemented-logic-instructions #f)
+(define-constant-default indexed-bit-instructions #f)

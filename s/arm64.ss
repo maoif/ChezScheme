@@ -293,6 +293,10 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (logand-not)
+    [(op (dest ur) (src ur) (mask ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-logand-not ,src ,mask))])
+
   (define-instruction value (clz)
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
@@ -766,6 +770,7 @@
                      asm-mul asm-smulh asm-div asm-add asm-sub asm-logand asm-logor asm-logxor
                      asm-pop-multiple asm-shiftop asm-logand asm-lognot asm-cmp/asr63 asm-popcount
                      asm-clz asm-ctz asm-cls asm-reverse-bits asm-rotate-right32
+                     asm-logand-not
                      asm-logtest asm-fp-relop asm-relop asm-push-multiple asm-push-fpmultiple asm-pop-fpmultiple
                      asm-indirect-jump asm-literal-jump
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
@@ -855,9 +860,10 @@
   (define-op add   binary-op  #b0)
   (define-op sub   binary-op  #b1)
 
-  (define-op and   logical-op  #b00)
-  (define-op orr   logical-op  #b01)
-  (define-op eor   logical-op  #b10)
+  (define-op and   logical-op  #b00 0)
+  (define-op orr   logical-op  #b01 0)
+  (define-op eor   logical-op  #b10 0)
+  (define-op bic   logical-op  #b00 1)
 
   (define-op cmp        cmp-op  #b1101011 #b00 0)
   (define-op tst        cmp-op  #b1101010 #b00 0)
@@ -1103,14 +1109,14 @@
         [0  (ax-ea-reg-code dest)])))
 
   (define logical-op
-    (lambda (op opcode set-cc? dest src0 src1 code*)
+    (lambda (op opcode invert set-cc? dest src0 src1 code*)
       (safe-assert (not set-cc?))
       (emit-code (op dest src0 src1 code*)
         [31 #b1]
         [29 opcode]
         [24 #b01010]
         [22 #b00] ; shift type (applied to src1)
-        [21 #b0]
+        [21 invert]
         [16 (ax-ea-reg-code src1)]
         [10 #b000000] ; shift amount
         [5  (ax-ea-reg-code src0)]
@@ -2531,6 +2537,11 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit mvn dest src code*))))
+
+  (define asm-logand-not
+    (lambda (code* dest src mask)
+      (Trivit (dest src mask)
+        (emit bic #f dest src mask code*))))
 
   (define asm-clz
     (lambda (code* dest src)

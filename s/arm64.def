@@ -16,4 +16,5 @@
 (define-constant bitfield-extract-instructions #t)
 (define-constant bit-reverse-instruction #t)
 (define-constant rotate32-instruction #t)
+(define-constant complemented-logic-instructions #t)
 (define-constant fpround-instruction #t)
