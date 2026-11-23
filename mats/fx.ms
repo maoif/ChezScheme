@@ -2408,6 +2408,10 @@
   (eqv? (fxcopy-bit-field #b10101010 4 5 0) #b10101010)
   (eqv? (fxcopy-bit-field #b10101010 0 4 0) #b10100000)
   (eqv? (fxcopy-bit-field #b10101010 0 4 #b0101) #b10100101)
+  (let* ([destination (black-box -1)]
+         [source (black-box #b101010)]
+         [result (fxcopy-bit-field destination 3 7 source)])
+    (and (eqv? result -41) (eqv? (fxbit-field result 3 7) #b1010)))
   (begin
     (define $fxbf1
       (let ([fb (fixnum-width)])

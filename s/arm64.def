@@ -13,4 +13,5 @@
 (define-constant popcount-instruction #t)
 (define-constant bit-scan-instructions #t)
 (define-constant count-leading-sign-bits-instruction #t)
+(define-constant bitfield-extract-instructions #t)
 (define-constant fpround-instruction #t)

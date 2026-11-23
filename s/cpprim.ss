@@ -1353,7 +1353,13 @@
               (if (fx= start 0)
                   body
                   (%inline logand ,body (immediate ,(- (constant fixnum-factor))))))))))
-    (define insert-bitfield
+    (define (insert-bitfield raw? start end bf-width arg val)
+      (if (constant bitfield-extract-instructions)
+          (%inline insert-field ,arg ,(build-unfix val)
+            (immediate ,(if raw? start (fx+ start (constant fixnum-offset))))
+            (immediate ,(fx- end start)))
+          (insert-bitfield/portable raw? start end bf-width arg val)))
+    (define insert-bitfield/portable
       (lambda (raw? start end bf-width arg val)
         (if raw?
             (cond
@@ -4930,7 +4936,10 @@
                        (immediate ,mask)))
             (constant-case ptr-bits
               [(64)
-               (finish `(inline ,(make-info-unboxed-args '(#t)) ,%fpcastto ,e) start)]
+               (let ([bits `(inline ,(make-info-unboxed-args '(#t)) ,%fpcastto ,e)])
+                 (if (constant bitfield-extract-instructions)
+                     (extract-unsigned-bitfield #t start (fx+ start size) bits)
+                     (finish bits start)))]
               [(32)
                (cond
                  [(<= (+ start size) 32)

@@ -307,6 +307,19 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,(asm-move/extend op) ,x))])
 
+  (define-instruction value (extract-unsigned-field extract-signed-field)
+    [(op (dest ur) (src ur) (start imm12) (width imm12))
+     `(set! ,(make-live-info) ,dest
+        (asm ,info ,(asm-extract-field (eq? op 'extract-signed-field)) ,src ,start ,width))])
+
+  (define-instruction value (insert-field)
+    [(op (dest ur) (old ur) (src ur) (start imm12) (width imm12))
+     (let ([tmp (make-tmp 'field)])
+       (seq
+        `(set! ,(make-live-info) ,tmp ,old)
+        `(set! ,(make-live-info) ,tmp (asm ,info ,asm-insert-field ,tmp ,src ,start ,width))
+        `(set! ,(make-live-info) ,dest ,tmp)))])
+
   (let ()
     (define imm-zero (with-output-language (L15d Triv) `(immediate 0)))
     (define load/store
@@ -639,6 +652,7 @@
                     asm-push asm-pop asm-return asm-c-return asm-kill
                     asm-load asm-store asm-fence asm-swap asm-lock asm-lock+/-
                     asm-move asm-fpmove asm-fpmove-single asm-move/extend
+                    asm-extract-field asm-insert-field
                     asm-return-address asm-indirect-call asm-library-call asm-library-call! asm-c-simple-call
                     asm-foreign-call asm-foreign-callable
                     asm-size signed12? unsigned12? signed14? signed16? signed20? signed26? shamt?)
@@ -717,6 +731,9 @@
   (define-op srli.d shift-imm-op #b1000101)
   (define-op srai.d shift-imm-op #b1001001)
 
+  (define-op bstrpick.d bitfield-op #b11)
+  (define-op bstrins.d  bitfield-op #b10)
+
   (define-op slti   two-R-imm12-op #b1000)
   (define-op sltui  two-R-imm12-op #b1001)
   (define-op addi.d two-R-imm12-op #b1011)
@@ -787,6 +804,15 @@
       (emit-code (op dest src shamt code*)
                  [16 opcode]
                  [10 (fxlogand (ax-imm-data shamt op) #b111111)]
+                 [5 (ax-ea-reg-code src)]
+                 [0 (ax-ea-reg-code dest)])))
+
+  (define bitfield-op
+    (lambda (op opcode dest src msb lsb code*)
+      (emit-code (op dest src msb lsb code*)
+                 [22 opcode]
+                 [16 msb]
+                 [10 lsb]
                  [5 (ax-ea-reg-code src)]
                  [0 (ax-ea-reg-code dest)])))
 
@@ -1155,6 +1181,30 @@
       (Trivit (dest src0 src1)
               (emit div.d dest src0 src1 code*))))
 
+
+  (define asm-extract-field
+    (lambda (signed?)
+      (lambda (code* dest src start width)
+        (Trivit (dest src start width)
+          (let* ([start (ax-imm-data start)]
+                 [width (ax-imm-data width)]
+                 [end (fx+ start width)])
+            (safe-assert (and (fx<= 0 start) (fx<= 1 width) (fx<= end 64)))
+            (cond
+              [(not signed?) (emit bstrpick.d dest src (fx- end 1) start code*)]
+              [(fx= end 64) (emit srai.d dest src (fx- 64 width) code*)]
+              [else (emit slli.d dest src (fx- 64 end)
+                      (emit srai.d dest dest (fx- 64 width) code*))]))))))
+
+  (define asm-insert-field
+    (lambda (code* dest old src start width)
+      (Trivit (dest src start width)
+        (safe-assert (equal? (Triv->rand old) dest))
+        (let* ([start (ax-imm-data start)]
+               [width (ax-imm-data width)]
+               [end (fx+ start width)])
+          (safe-assert (and (fx<= 0 start) (fx<= 1 width) (fx<= end 64)))
+          (emit bstrins.d dest src (fx- end 1) start code*)))))
 
   (module (asm-logand asm-logor asm-logxor asm-sll asm-srl asm-sra)
     (define-syntax gen-log-op

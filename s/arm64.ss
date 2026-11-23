@@ -354,6 +354,19 @@
   (define-instruction value (sext8 sext16 sext32 zext8 zext16 zext32)
     [(op (z ur) (x ur)) `(set! ,(make-live-info) ,z (asm ,info ,(asm-move/extend op) ,x))])
 
+  (define-instruction value (extract-unsigned-field extract-signed-field)
+    [(op (dest ur) (src ur) (start imm-constant) (width imm-constant))
+     `(set! ,(make-live-info) ,dest
+        (asm ,info ,(asm-extract-field (eq? op 'extract-signed-field)) ,src ,start ,width))])
+
+  (define-instruction value (insert-field)
+    [(op (dest ur) (old ur) (src ur) (start imm-constant) (width imm-constant))
+     (let ([tmp (make-tmp 'field)])
+       (seq
+        `(set! ,(make-live-info) ,tmp ,old)
+        `(set! ,(make-live-info) ,tmp (asm ,info ,asm-insert-field ,tmp ,src ,start ,width))
+        `(set! ,(make-live-info) ,dest ,tmp)))])
+
   (let ()
     (define imm-zero (with-output-language (L15d Triv) `(immediate 0)))
     (define load/store
@@ -751,6 +764,7 @@
                      asm-indirect-call asm-condition-code
                      asm-fpmove-single asm-fl-cvt asm-fpt asm-fpmove asm-fpcastto asm-fpcastfrom
                      asm-fptrunc asm-fpsingle
+                     asm-extract-field asm-insert-field
                      asm-lock asm-lock+/- asm-cas asm-fence
                      asm-fpop-2 asm-fpsqrt asm-fpround asm-fpfma asm-c-simple-call
                      asm-return asm-c-return asm-size
@@ -852,6 +866,10 @@
   (define-op lsli  shifti-op #b10 'l) ; selector is at bit 29 (opc)
   (define-op lsri  shifti-op #b10 'r)
   (define-op asri  shifti-op #b00 'r)
+
+  (define-op sbfm bitfield-op #b00)
+  (define-op bfm  bitfield-op #b01)
+  (define-op ubfm bitfield-op #b10)
 
   (define-op lsl  shift-op #b00) ; selector is at bit 10 (op2)
   (define-op lsr  shift-op #b01)
@@ -1135,6 +1153,17 @@
         [10 (if (eq? dir 'l)
                 (fx- 63 imm)
                 63)]
+        [5  (ax-ea-reg-code src)]
+        [0  (ax-ea-reg-code dest)])))
+
+  (define bitfield-op
+    (lambda (op opcode dest src immr imms code*)
+      (emit-code (op dest src immr imms code*)
+        [31 #b1]
+        [29 opcode]
+        [22 #b1001101]
+        [16 immr]
+        [10 imms]
         [5  (ax-ea-reg-code src)]
         [0  (ax-ea-reg-code dest)])))
 
@@ -2442,6 +2471,26 @@
   (define asm-return (lambda () (emit ret (cons 'reg %lr) '())))
 
   (define asm-c-return (lambda (info) (emit ret (cons 'reg %lr) '())))
+
+  (define asm-extract-field
+    (lambda (signed?)
+      (lambda (code* dest src start width)
+        (Trivit (dest src start width)
+          (let* ([start (ax-imm-data start)]
+                 [width (ax-imm-data width)]
+                 [end (fx+ start width)])
+            (safe-assert (and (fx<= 0 start) (fx<= 1 width) (fx<= end 64)))
+            (if signed?
+                (emit sbfm dest src start (fx- end 1) code*)
+                (emit ubfm dest src start (fx- end 1) code*)))))))
+
+  (define asm-insert-field
+    (lambda (code* dest old src start width)
+      (Trivit (dest src start width)
+        (safe-assert (equal? (Triv->rand old) dest))
+        (let ([start (ax-imm-data start)] [width (ax-imm-data width)])
+          (safe-assert (and (fx<= 0 start) (fx<= 1 width) (fx<= (fx+ start width) 64)))
+          (emit bfm dest src (fxlogand (fx- 0 start) 63) (fx- width 1) code*)))))
 
   (define-who asm-shiftop
     (lambda (op)

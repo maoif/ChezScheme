@@ -726,6 +726,7 @@
   ;; Extract a nonempty raw field with immediate start and width.
   (declare-primitive extract-unsigned-field value #t)
   (declare-primitive extract-signed-field value #t)
+  (declare-primitive insert-field value #t)
   (declare-primitive cpuid value #t) ; x86_64 only, actually side-effects ebx/ecx/edx
   (declare-primitive fstpl value #f) ; x86 only
   (declare-primitive fstps value #f) ; x86 only

@@ -10,3 +10,4 @@
 (define-constant unaligned-integers #t)
 (define-constant integer-divide-instruction #t)
 (define-constant bit-scan-instructions #t)
+(define-constant bitfield-extract-instructions #t)
