@@ -3729,7 +3729,11 @@
             ($oops who "count ~s is greater than difference between end index ~s and start index ~s" count end start)
             ($oops who "invalid count ~s" count)))
       (if (and (constant rotate32-instruction) (fx= width 32))
-          (fxcopy-bit-field n start end (#3%$fxrotate32 (fxbit-field n start end) count))
+          ;; The rotate uses only the low 32 bits. The checks above ensure
+          ;; that the shifted mask and result fit in a positive fixnum.
+          (let ([mask (#3%fxsll #xffffffff start)]
+                [field (#3%$fxrotate32 (#3%fxsra n start) count)])
+            (#3%fxif mask (#3%fxsll field start) n))
           (let ([mask (fxsll (fxsrl -1 (fx- (fixnum-width) width)) start)])
             (let ([field (fxlogand n mask)])
               (fxlogor

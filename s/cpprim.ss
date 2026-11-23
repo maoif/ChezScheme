@@ -2764,13 +2764,32 @@
                      (%inline add-scaled ,index ,base (immediate ,scale)))))]
          [else #f])])
 
-    (define-inline 3 $fxrotate32
-      [(field count)
-       (and (constant rotate32-instruction)
-            (build-fix
-              (%inline zext32
-                ,(%inline rotate-right32 ,(build-unfix field)
-                   ,(%inline - (immediate 0) ,(build-unfix count))))))])
+    (let ()
+      (define (build-fxrotate32 field count)
+        (build-fix
+          (%inline zext32
+            ,(%inline rotate-right32 ,(build-unfix field)
+               ,(%inline - (immediate 0) ,(build-unfix count))))))
+      (define (maybe-build-fxrotate-bit-field src sexpr word start end count)
+        (and (constant rotate32-instruction)
+             (fixnum-constant? start) (fixnum-constant? end)
+             (let ([lo (constant-value start)] [hi (constant-value end)])
+               (and (fx<= 0 lo hi) (fx< hi (constant fixnum-bits)) (fx= (fx- hi lo) 32)
+                    (bind #t (word count)
+                      `(if ,(build-and (build-fixnums? (list word count))
+                              (%inline u< ,count (immediate ,(fix 33))))
+                           ,(insert-bitfield #f lo hi (constant fixnum-bits) word
+                              (build-fxrotate32 (extract-unsigned-bitfield #f lo hi word) count))
+                           (seq (pariah)
+                                (call ,(make-info-call src sexpr #f #t #f) #f
+                                      ,(Symref 'fxrotate-bit-field) ,word ,start ,end ,count))))))))
+      (define-inline 3 $fxrotate32
+        [(field count)
+         (and (constant rotate32-instruction) (build-fxrotate32 field count))])
+      (define-inline 2 fxrotate-bit-field
+        [(word start end count) (maybe-build-fxrotate-bit-field src sexpr word start end count)])
+      (define-inline 3 fxrotate-bit-field
+        [(word start end count) (maybe-build-fxrotate-bit-field src sexpr word start end count)]))
 
     (define-inline 3 $fxreverse
       [(field width)
