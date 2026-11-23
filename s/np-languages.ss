@@ -718,6 +718,14 @@
   (declare-primitive -/eq value #f)
   (declare-primitive -/pos value #f)
   (declare-primitive asmlibcall value #f)
+  ;; Raw word scans. CLZ and CTZ require a nonzero input; CLS does not
+  ;; count the sign bit itself.
+  (declare-primitive clz value #t)
+  (declare-primitive ctz value #t)
+  (declare-primitive cls value #t)
+  ;; Extract a nonempty raw field with immediate start and width.
+  (declare-primitive extract-unsigned-field value #t)
+  (declare-primitive extract-signed-field value #t)
   (declare-primitive cpuid value #t) ; x86_64 only, actually side-effects ebx/ecx/edx
   (declare-primitive fstpl value #f) ; x86 only
   (declare-primitive fstps value #f) ; x86 only

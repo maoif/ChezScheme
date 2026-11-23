@@ -2887,7 +2887,12 @@
 
       (define-inline 3 fxbit-field ; expose internal fx ops for partial optimization
         [(?n ?start ?end)
-         (cp0
+         ;; Keep a nonconstant extraction with constant bounds for cpprim.
+         (and (not (and (constant bitfield-extract-instructions)
+                        (cp0-constant? target-fixnum? (result-exp (value-visit-operand! ?start)))
+                        (cp0-constant? target-fixnum? (result-exp (value-visit-operand! ?end)))
+                        (not (cp0-constant? (result-exp (value-visit-operand! ?n))))))
+          (cp0
            (let ([n (cp0-make-temp #f)]
                  [start (cp0-make-temp #f)]
                  [end (cp0-make-temp #f)])
@@ -2904,7 +2909,7 @@
                                `(quote -1)
                                (build-ref end)))))))
                    (build-ref start)))))
-           ctxt empty-env sc wd name moi)])
+           ctxt empty-env sc wd name moi))])
 
       (let ()
         (define make-fold?

@@ -1314,7 +1314,25 @@
             `(inline ,(make-info-load ptr-type #t) ,%store ,base ,index (immediate ,offset)
                ,(build-unfix value))]
            [else (sorry! who "unrecognized type ~s" type)])]))
-    (define extract-unsigned-bitfield
+    ;; Input positions in a tagged fixnum are relative to the first data bit.
+    ;; Both the signed and unsigned helpers produce a tagged result.
+    (define (build-native-field-extract raw? start end arg extract)
+      (and (constant bitfield-extract-instructions)
+           (build-fix
+             (extract arg
+               (if raw? start (fx+ start (constant fixnum-offset)))
+               (fx- end start)))))
+    (define (extract-unsigned-bitfield raw? start end arg)
+      (or (build-native-field-extract raw? start end arg
+            (lambda (arg start width)
+              (%inline extract-unsigned-field ,arg (immediate ,start) (immediate ,width))))
+          (extract-unsigned-bitfield/portable raw? start end arg)))
+    (define (extract-signed-bitfield raw? start end arg)
+      (or (build-native-field-extract raw? start end arg
+            (lambda (arg start width)
+              (%inline extract-signed-field ,arg (immediate ,start) (immediate ,width))))
+          (extract-signed-bitfield/portable raw? start end arg)))
+    (define extract-unsigned-bitfield/portable
       (lambda (raw? start end arg)
         (let* ([left (fx- (if raw? (constant ptr-bits) (constant fixnum-bits)) end)]
                [right (if raw? (fx- (fx+ left start) (constant fixnum-offset)) (fx+ left start))]
@@ -1326,7 +1344,7 @@
           (if (fx= start 0)
               body
               (%inline logand ,body (immediate ,(- (constant fixnum-factor))))))))
-    (define extract-signed-bitfield
+    (define extract-signed-bitfield/portable
       (lambda (raw? start end arg)
         (let* ([left (fx- (if raw? (constant ptr-bits) (constant fixnum-bits)) end)]
                [right (if raw? (fx- (fx+ left start) (constant fixnum-offset)) (fx+ left start))])
@@ -2617,10 +2635,8 @@
                   (and (and (fx>= start 0) (fx> end start) (fx< end (constant fixnum-bits)))
                        (insert-bitfield #f start end (constant fixnum-bits) e1 e4)))))])
 
-    ;; could be done with one mutable variable instead of two, but this seems to generate
-    ;; the same code as the existing compiler
-    (define-inline 3 fxlength
-      [(e)
+    (let ()
+    (define (build-fxlength/portable e)
        (let ([t (make-assigned-tmp 't 'uptr)] [result (make-assigned-tmp 'result)])
          `(let ([,t ,(build-unfix e)])
             (seq
@@ -2654,10 +2670,9 @@
                     ,(%inline + ,result
                       (inline ,(make-info-load 'unsigned-8 #f) ,%load
                         ,(%tc-ref fxlength-bv) ,t
-                        ,(%constant bytevector-data-disp)))))))))])
+                        ,(%constant bytevector-data-disp))))))))))
 
-    (define-inline 3 fxfirst-bit-set
-      [(e)
+    (define (build-fxfirst-bit-set/portable e)
        (let ([t (make-assigned-tmp 't 'uptr)] [result (make-assigned-tmp 'result)])
          (bind #t (e)
            `(if ,(%inline eq? ,e (immediate ,(fix 0)))
@@ -2689,7 +2704,35 @@
                         (inline ,(make-info-load 'unsigned-8 #f) ,%load
                           ,(%tc-ref fxfirst-bit-set-bv)
                           ,(%inline logand ,t (immediate #xff))
-                          ,(%constant bytevector-data-disp)))))))))])
+                          ,(%constant bytevector-data-disp))))))))))
+
+    (define-inline 3 fxlength
+      [(e)
+       (cond
+         [(constant count-leading-sign-bits-instruction)
+          (build-fix
+            (%inline - (immediate ,(sub1 (constant ptr-bits)))
+              ,(%inline cls ,(build-unfix e))))]
+         [(constant bit-scan-instructions)
+          (let ([arg (build-unfix e)])
+            (bind #t (arg)
+              (let ([bits (%inline logxor ,arg
+                            ,(%inline sra ,arg (immediate ,(sub1 (constant ptr-bits)))))])
+                (bind #t (bits)
+                  `(if ,(%inline eq? ,bits (immediate 0))
+                       (immediate ,(fix 0))
+                       ,(build-fix
+                          (%inline - (immediate ,(constant ptr-bits)) ,(%inline clz ,bits))))))))]
+         [else (build-fxlength/portable e)])])
+
+    (define-inline 3 fxfirst-bit-set
+      [(e)
+       (if (constant bit-scan-instructions)
+           (bind #t (e)
+             `(if ,(%inline eq? ,e (immediate ,(fix 0)))
+                  (immediate ,(fix -1))
+                  ,(build-fix (%inline ctz ,(build-unfix e)))))
+           (build-fxfirst-bit-set/portable e))]))
 
     (let ()
       (define-syntax type-pred
