@@ -1091,6 +1091,11 @@
 )
 
 (mat bytevector-s16-ref
+  (let ([bytes (make-bytevector 6 0)] [offset (black-box 1)])
+    (bytevector-s32-set! bytes offset #x-1234567 'big)
+    (and (eqv? (bytevector-s32-ref bytes offset 'big) #x-1234567)
+         (eqv? (bytevector-u32-ref bytes offset 'big) #xfedcba99)
+         (equal? bytes #vu8(0 254 220 186 153 0))))
  ; wrong argument count
   (error? (bytevector-s16-ref))
   (error? (bytevector-s16-ref #vu8(3 252 5)))

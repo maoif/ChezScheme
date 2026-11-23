@@ -671,6 +671,8 @@
            #'(emit-op op x ...))])))
 
   (define-op add bin-op #b0110011 #b000 #b0000000)
+  (define-op add.uw bin-op #b0111011 #b000 #b0000100)
+  (define-op zext.h bin-op #b0111011 #b100 #b0000100)
   (define-op sub bin-op #b0110011 #b000 #b0100000)
   (define-op mul bin-op #b0110011 #b000 #b0000001)
   (define-op mulh bin-op #b0110011 #b001 #b0000001)
@@ -723,10 +725,13 @@
   (define-op slli shift-imm-op #b0010011 #b001 #b000000)
   (define-op srli shift-imm-op #b0010011 #b101 #b000000)
   (define-op srai shift-imm-op #b0010011 #b101 #b010000)
+  (define-op rev8 bin-imm-op #b0010011 #b101)
 
   (define-op clz scan-op #x600)
   (define-op ctz scan-op #x601)
   (define-op cpop scan-op #x602)
+  (define-op sext.b scan-op #x604)
+  (define-op sext.h scan-op #x605)
 
   (define-op fsw store-op #b0100111 #b010)
   (define-op fsd store-op #b0100111 #b011)
@@ -1215,58 +1220,16 @@
   ;; big <-> little-endian
   (define-who asm-swap
     (lambda (type)
-      (rec asm-swap-internal
-           (lambda (code* dest src)
-             (let ([t0 %scratch0]
-                   [t1 %scratch1]) ; holds original src value, in case src = dest
-               (Trivit (dest src)
-                 ;; Maybe one day the B extension for RISC-V will be useful here
-                 (define dance
-                   (lambda (right left code*)
-                     (emit srli t0 t1 right
-                           (emit andi t0 t0 #xff
-                                 (if (= left 0)
-                                     (emit or dest dest t0 code*)
-                                     (emit slli t0 t0 left
-                                           (emit or dest dest t0 code*)))))))
-                 (emit addi t1 src 0
-                       (case type
-                         [(integer-16)
-                          ;; 1st byte
-                          (emit slli t0 t1 56
-                                (emit srai dest t0 48
-                                      ;; 2nd byte
-                                      (dance 8 0 code*)))]
-                       [(unsigned-16)
-                        (emit andi t0 t1 #xff
-                              (emit slli dest t0 8
-                                    (dance 8 0 code*)))]
-                       [(integer-32)
-                        ;; 1st byte
-                        (emit slli t0 t1 56
-                              (emit srai dest t0 32
-                                    ;; 2nd and so on
-                                    (dance 8 16
-                                           (dance 16 8
-                                                  (dance 24 0 code*)))))]
-                       [(unsigned-32)
-                        ;; 1st byte
-                        (emit andi t0 t1 #xff
-                              (emit slli dest t0 24
-                                    ;; 2nd and so on
-                                    (dance 8 16
-                                           (dance 16 8
-                                                  (dance 24 0 code*)))))]
-                       [(integer-64 unsigned-64)
-                        (emit slli dest t1 56
-                              (dance 8 48
-                                     (dance 16 40
-                                            (dance 24 32
-                                                   (dance 32 24
-                                                          (dance 40 16
-                                                                 (dance 48 8
-                                                                        (dance 56 0 code*))))))))]
-                       [else (sorry! who "unexpected asm-swap type argument ~s" type)]))))))))
+      (lambda (code* dest src)
+        (Trivit (dest src)
+          (emit rev8 dest src #x6b8
+            (case type
+              [(integer-16) (emit srai dest dest 48 code*)]
+              [(unsigned-16) (emit srli dest dest 48 code*)]
+              [(integer-32) (emit srai dest dest 32 code*)]
+              [(unsigned-32) (emit srli dest dest 32 code*)]
+              [(integer-64 unsigned-64) code*]
+              [else (sorry! who "unexpected asm-swap type argument ~s" type)]))))))
 
   (define asm-lock ;;@ check operands of sc.d, see if can be used in both places
     ;;    lr.d tmp, [addr]
@@ -1460,24 +1423,20 @@
                   [else (bad!)])]
                [else (bad!)]))))
 
-  (define-who asm-move/extend ;;@ todo simplify some of them
+  (define-who asm-move/extend
     (lambda (op)
       (lambda (code* dest src)
         (Trivit (dest src)
-                (case op
-                  [(sext8) (emit slli dest src 56
-                                 (emit srai dest dest 56 code*))]
-                  [(sext16) (emit slli dest src 48
-                                  (emit srai dest dest 48 code*))]
-                  [(sext32) (emit slli dest src 32
-                                  (emit srai dest dest 32 code*))]
-                  [(zext8) (emit slli dest src 56
-                                 (emit srli dest dest 56 code*))]
-                  [(zext16) (emit slli dest src 48
-                                  (emit srli dest dest 48 code*))]
-                  [(zext32) (emit slli dest src 32
-                                  (emit srli dest dest 32 code*))]
-                  [else (sorry! who "unexpected op ~s" op)])))))
+          (case op
+            [(sext8) (emit sext.b dest src code*)]
+            [(sext16) (emit sext.h dest src code*)]
+            [(sext32) (emit slli dest src 32
+                        (emit srai dest dest 32 code*))]
+            [(zext8) (emit slli dest src 56
+                       (emit srli dest dest 56 code*))]
+            [(zext16) (emit zext.h dest src %real-zero code*)]
+            [(zext32) (emit add.uw dest src %real-zero code*)]
+            [else (sorry! who "unexpected op ~s" op)])))))
 
   (define-who asm-fpmove
     ;; fpmove pseudo instruction is used by set! case in
