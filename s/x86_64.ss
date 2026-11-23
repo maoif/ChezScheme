@@ -483,7 +483,10 @@
     [(op (z mem) (x z) (y ur mem imm)) (go info op z x y)]
     [(op (z ur) (x z) (y imm32))
      `(set! ,(make-live-info) ,z (asm ,info ,(asm-shiftop op) ,x ,y))]
-    [(op (z ur) (x z) (y ur mem imm)) (go info op z x y)]
+    [(op (z ur) (x z) (y ur mem imm))
+     (if (and (constant-case x86-64-level [(3 4) #t] [else #f]) (ur? y))
+         `(set! ,(make-live-info) ,z (asm ,info ,(asm-bmi2-shift op) ,x ,y))
+         (go info op z x y))]
     [(op (z ur) (x ur mem imm32) (y imm32))
      (let ([t (make-tmp 'u)])
        (seq
@@ -491,11 +494,13 @@
          `(set! ,(make-live-info) ,t (asm ,info ,(asm-shiftop op) ,t ,y))
          `(set! ,(make-live-info) ,z ,t)))]
     [(op (z ur) (x ur mem imm32) (y ur mem imm))
-     (let ([t (make-tmp 'u)])
-       (seq
-         `(set! ,(make-live-info) ,t ,x)
-         (go info op t t y)
-         `(set! ,(make-live-info) ,z ,t)))])
+     (if (and (constant-case x86-64-level [(3 4) #t] [else #f]) (ur? x) (ur? y))
+         `(set! ,(make-live-info) ,z (asm ,info ,(asm-bmi2-shift op) ,x ,y))
+         (let ([t (make-tmp 'u)])
+           (seq
+             `(set! ,(make-live-info) ,t ,x)
+             (go info op t t y)
+             `(set! ,(make-live-info) ,z ,t))))])
 
   (define-instruction value (clz)
     [(op (dest ur) (src ur mem))
@@ -931,7 +936,7 @@
 (module asm-module (; required exports
                      asm-move asm-move/extend asm-load asm-store asm-swap asm-library-call asm-library-jump
                      asm-mul asm-muli asm-addop asm-add asm-sub asm-negate asm-sub-negate
-                     asm-pop asm-shiftop asm-sll asm-logand asm-lognot
+                     asm-pop asm-shiftop asm-bmi2-shift asm-sll asm-logand asm-lognot
                      asm-logtest asm-fp-relop asm-relop asm-push asm-indirect-jump asm-literal-jump
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
                      asm-lea1 asm-lea2 asm-indirect-call asm-condition-code
@@ -2330,6 +2335,23 @@
         [(srl) asm-srl]
         [(sra) asm-sra]
         [else ($oops who "unsupported op ~s" op)])))
+
+  (define asm-bmi2-shift
+    (lambda (op)
+      (let ([prefix (case op [(sll) 1] [(sra) 2] [(srl) 3])])
+        (lambda (code* dest src count)
+          (Trivit (dest src count)
+            (let ([rd (ax-ea-reg-code dest)]
+                  [rs (ax-ea-reg-code src)]
+                  [rc (ax-ea-reg-code count)])
+              ;; VEX.128.0F38.W1: the count is in inverted vvvv.
+              (emit-code (op dest src count code*)
+                (build byte #xc4)
+                (build byte (byte-fields (7 (fxlogxor 1 (fxsrl rd 3))) (6 1)
+                                         (5 (fxlogxor 1 (fxsrl rs 3))) (0 2)))
+                (build byte (byte-fields (7 1) (3 (fxlogxor rc 15)) (0 prefix)))
+                (build byte #xf7)
+                (build byte (byte-fields (6 3) (3 (fxlogand rd 7)) (0 (fxlogand rs 7)))))))))))
 
   (define asm-sll
     (lambda (code* dest src0 src1)

@@ -3672,6 +3672,10 @@
         (logand n (lognot ($sll who mask start)))
         ($sll who (logand m mask) start)))))
 
+(set! $fxadd-scaled
+  (lambda (base index shift)
+    (fx+/wraparound base (fxsll/wraparound index shift))))
+
 (set! $fxrotate32
   (lambda (field count)
     (let ([count (fxand count 31)])

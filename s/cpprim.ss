@@ -2751,6 +2751,19 @@
                   ,(build-fix (%inline ctz ,(build-unfix e)))))
            (build-fxfirst-bit-set/portable e))]))
 
+    (define-inline 3 $fxadd-scaled
+      [(base index shift)
+       (constant-case architecture
+         [(riscv64)
+          (and (constant? (lambda (shift) (and (fixnum? shift) (fx<= 1 shift 3))) shift)
+               (let ([scale (constant-value shift)])
+                 ;; Both operands are tagged. Scaling and summing leaves
+                 ;; the tag bits zero without an untag/retag pair.
+                 (if (and (fixnum-constant? base) (fx= (constant-value base) 0))
+                     (%inline sll ,index (immediate ,scale))
+                     (%inline add-scaled ,index ,base (immediate ,scale)))))]
+         [else #f])])
+
     (define-inline 3 $fxrotate32
       [(field count)
        (and (constant rotate32-instruction)

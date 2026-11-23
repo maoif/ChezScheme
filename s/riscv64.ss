@@ -254,6 +254,10 @@
     [(op (z ur) (x ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-lognot ,x))])
 
+  (define-instruction value (add-scaled)
+    [(op (dest ur) (index ur) (base ur) (scale shamt))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-add-scaled ,index ,base ,scale))])
+
   (define-instruction value (clz)
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-clz ,src))])
@@ -646,7 +650,7 @@
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-logand-not asm-bit-extract asm-bit-set asm-bit-clear
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
-                    asm-clz asm-ctz asm-popcount
+                    asm-clz asm-ctz asm-popcount asm-add-scaled
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt
                     asm-cas asm-relop asm-fp-relop asm-fpop-2 asm-fpfma asm-save-flrv asm-restore-flrv
@@ -680,6 +684,9 @@
            #'(emit-op op x ...))])))
 
   (define-op add bin-op #b0110011 #b000 #b0000000)
+  (define-op sh1add bin-op #b0110011 #b010 #b0010000)
+  (define-op sh2add bin-op #b0110011 #b100 #b0010000)
+  (define-op sh3add bin-op #b0110011 #b110 #b0010000)
   (define-op add.uw bin-op #b0111011 #b000 #b0000100)
   (define-op zext.h bin-op #b0111011 #b100 #b0000100)
   (define-op sub bin-op #b0110011 #b000 #b0100000)
@@ -1141,6 +1148,15 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit clz dest src code*))))
+
+  (define-who asm-add-scaled
+    (lambda (code* dest index base scale)
+      (Trivit (dest index base scale)
+        (case (ax-imm-data scale who)
+          [(1) (emit sh1add dest index base code*)]
+          [(2) (emit sh2add dest index base code*)]
+          [(3) (emit sh3add dest index base code*)]
+          [else (sorry! who "unexpected scale ~s" scale)]))))
 
   (define asm-ctz
     (lambda (code* dest src)

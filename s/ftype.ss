@@ -1457,9 +1457,16 @@ ftype operators:
                    (let ([elt-ftd (ftd-array-ftd ftd)] [len (ftd-array-length ftd)])
                      (if (memv (syntax->datum a) '(* 0))
                          (loop elt-ftd (cdr a*) fptr-expr offset idx*)
-                         (let ([a-id (car (generate-temporaries (list #'i)))])
+                         (let* ([a-id (car (generate-temporaries (list #'i)))]
+                                [size (ftd-size elt-ftd)]
+                                [scale (constant-case architecture
+                                         [(riscv64)
+                                          (case size [(2) 1] [(4) 2] [(8) 3] [else #f])]
+                                         [else #f])])
                            (loop elt-ftd (cdr a*) fptr-expr
-                             #`(#3%fx+ #,offset (#3%fx* #,a-id #,(ftd-size elt-ftd)))
+                             (if scale
+                                 #`(#3%$fxadd-scaled #,offset #,a-id #,scale)
+                                 #`(#3%fx+ #,offset (#3%fx* #,a-id #,size)))
                              (cons (list ftd a-id a len) idx*)))))]
                   [(ftd-pointer? ftd)
                    (let ([elt-fptd (ftd-pointer-fptd ftd)])

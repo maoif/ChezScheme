@@ -420,6 +420,10 @@
         '(132 0 4 12 112 128 12 30 112 116 116 116 120 116 116 120)
         '(152 0 8 16 120 144 16 34 120 128 128 128 132 128 128 136)))
 
+  (let ([pointer (make-ftype-pointer Ea 0)])
+    (= (ftype-pointer-address (ftype-&ref Ea (z (black-box 4) b) pointer (black-box 1)))
+       (+ (ftype-sizeof Ea) (ftype-pointer-address (ftype-&ref Ea (z 4 b) pointer)))))
+
   (begin
     (define-ftype Eb
       (packed

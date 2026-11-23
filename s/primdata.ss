@@ -2229,6 +2229,7 @@
   ($ftype-guardian-oops [flags])
   ($ftype-pointer? [sig [(ptr) -> (boolean)]] [flags pure unrestricted mifoldable])
   ($fxaddress [flags single-valued unrestricted alloc])
+  ($fxadd-scaled [sig [(fixnum fixnum fixnum) -> (fixnum)]] [flags single-valued])
   ($fx-? [sig [(ptr ptr) -> (maybe-fixnum)]] [flags unrestricted pure]) ; not boolean
   ($fx/ [flags single-valued])
   ($fx* [flags single-valued])
