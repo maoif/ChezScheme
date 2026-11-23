@@ -14,4 +14,6 @@
 (define-constant bit-scan-instructions #t)
 (define-constant count-leading-sign-bits-instruction #t)
 (define-constant bitfield-extract-instructions #t)
+(define-constant bit-reverse-instruction #t)
+(define-constant rotate32-instruction #t)
 (define-constant fpround-instruction #t)

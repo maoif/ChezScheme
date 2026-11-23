@@ -271,6 +271,14 @@
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
 
+  (define-instruction value (reverse-bits)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-reverse-bits ,src))])
+
+  (define-instruction value (rotate-right32)
+    [(op (dest ur) (src ur) (count ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-rotate-right32 ,src ,count))])
+
   (define-instruction value (move)
     [(op (z mem) (x ur))
      `(set! ,(make-live-info) ,z ,x)]
@@ -640,7 +648,7 @@
 
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
                     asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
-                    asm-clz asm-ctz
+                    asm-clz asm-ctz asm-reverse-bits asm-rotate-right32
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt asm-fpcastto asm-fpcastfrom
                     asm-single->double asm-double->single
@@ -676,6 +684,7 @@
 
   (define-op clz.d   two-R-op #b1001)
   (define-op ctz.d   two-R-op #b1011)
+  (define-op bitrev.d two-R-op #b10101)
   (define-op revb.2h two-R-op #b1100)
   (define-op revb.2w two-R-op #b1110)
   (define-op revb.d  two-R-op #b1111)
@@ -711,6 +720,7 @@
   (define-op sll.d three-R-op #b110001)
   (define-op srl.d three-R-op #b110010)
   (define-op sra.d three-R-op #b110011)
+  (define-op rotr.w three-R-op #b110110)
   (define-op ldx.b three-R-op #b00111000000000000)
   (define-op ldx.h three-R-op #b00111000000001000)
   (define-op ldx.w three-R-op #b00111000000010000)
@@ -1254,6 +1264,16 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit ctz.d dest src code*))))
+
+  (define asm-reverse-bits
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit bitrev.d dest src code*))))
+
+  (define asm-rotate-right32
+    (lambda (code* dest src count)
+      (Trivit (dest src count)
+        (emit rotr.w dest src count code*))))
 
   (define-who asm-load
     (lambda (type)

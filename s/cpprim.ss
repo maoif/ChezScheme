@@ -2741,6 +2741,27 @@
                   ,(build-fix (%inline ctz ,(build-unfix e)))))
            (build-fxfirst-bit-set/portable e))]))
 
+    (define-inline 3 $fxrotate32
+      [(field count)
+       (and (constant rotate32-instruction)
+            (build-fix
+              (%inline zext32
+                ,(%inline rotate-right32 ,(build-unfix field)
+                   ,(%inline - (immediate 0) ,(build-unfix count))))))])
+
+    (define-inline 3 $fxreverse
+      [(field width)
+       (and (constant bit-reverse-instruction)
+            (bind #t (field width)
+              ;; The caller has extracted the field. An empty field needs
+              ;; no shift (the native count would be the full word width).
+              `(if ,(%inline eq? ,width (immediate ,(fix 0)))
+                   (immediate ,(fix 0))
+                   ,(build-fix
+                      (%inline srl
+                        ,(%inline reverse-bits ,(build-unfix field))
+                        ,(%inline - (immediate ,(constant ptr-bits)) ,(build-unfix width)))))))])
+
     (let ()
       (define-syntax type-pred
         (syntax-rules ()

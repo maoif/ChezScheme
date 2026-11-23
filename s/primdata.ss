@@ -2234,6 +2234,8 @@
   ($fx* [flags single-valued])
   ($fx+? [sig [(ptr ptr) -> (maybe-fixnum)]] [flags unrestricted pure]) ; not boolean
   ($fxu< [flags single-valued pure cp02])
+  ($fxreverse [sig [(fixnum fixnum) -> (fixnum)]] [flags single-valued])
+  ($fxrotate32 [sig [(fixnum fixnum) -> (fixnum)]] [flags single-valued])
   ($fxvector-ref-check? [sig [(ptr ptr) -> (boolean)]] [flags unrestricted pure])
   ($fxvector-set!-check? [sig [(ptr ptr) -> (boolean)]] [flags unrestricted discard])
   ($fxx- [sig [(fixnum fixnum ...) -> (sint)]] [flags arith-op partial-folder safeongoodargs])

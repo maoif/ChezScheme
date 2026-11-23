@@ -45,6 +45,8 @@
 (define-constant-default bit-scan-instructions #f)
 (define-constant-default count-leading-sign-bits-instruction #f)
 (define-constant-default bitfield-extract-instructions #f)
+(define-constant-default bit-reverse-instruction #f)
+(define-constant-default rotate32-instruction #f)
 (define-constant-default fpround-instruction #f)
 (define-constant-default sqrt-instruction #f)
 (define-constant-default fence-instruction #f)

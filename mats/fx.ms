@@ -2846,6 +2846,11 @@
 )
 
 (mat fxrotate-bit-field
+  (or (fx<= (fixnum-width) 35)
+      (let ([value (black-box #x-200000005)])
+        (and (eqv? (fxrotate-bit-field value 3 35 32) value)
+             (eqv? (fxrotate-bit-field value 3 35 1) #x-400000005)
+             (eqv? (bitwise-rotate-bit-field value 3 35 33) #x-400000005))))
   (error? (fxrotate-bit-field))
   (error? (fxrotate-bit-field 0))
   (error? (fxrotate-bit-field 0 0))

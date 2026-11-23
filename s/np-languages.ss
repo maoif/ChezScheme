@@ -727,6 +727,9 @@
   (declare-primitive extract-unsigned-field value #t)
   (declare-primitive extract-signed-field value #t)
   (declare-primitive insert-field value #t)
+  (declare-primitive reverse-bits value #t)
+  ;; Rotate the low 32 bits; the upper result bits are unspecified.
+  (declare-primitive rotate-right32 value #t)
   (declare-primitive cpuid value #t) ; x86_64 only, actually side-effects ebx/ecx/edx
   (declare-primitive fstpl value #f) ; x86 only
   (declare-primitive fstps value #f) ; x86 only

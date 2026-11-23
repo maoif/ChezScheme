@@ -11,3 +11,5 @@
 (define-constant integer-divide-instruction #t)
 (define-constant bit-scan-instructions #t)
 (define-constant bitfield-extract-instructions #t)
+(define-constant bit-reverse-instruction #t)
+(define-constant rotate32-instruction #t)

@@ -3672,6 +3672,12 @@
         (logand n (lognot ($sll who mask start)))
         ($sll who (logand m mask) start)))))
 
+(set! $fxrotate32
+  (lambda (field count)
+    (let ([count (fxand count 31)])
+      (bitwise-ior (bitwise-and (bitwise-arithmetic-shift-left field count) #xffffffff)
+                   (bitwise-arithmetic-shift-right field (fx- 32 count))))))
+
 (set-who! bitwise-rotate-bit-field
   (lambda (n start end count)
     (unless (or (fixnum? n) (bignum? n))
@@ -3686,7 +3692,11 @@
                 (and (bignum? count) ($bigpositive? count)))
       ($oops who "invalid count ~s" count))
     (let ([width (- end start)])
-      (if (positive? width)
+      (cond
+        [(and (constant rotate32-instruction) (eqv? width 32)
+              (fixnum? n) (fixnum? end) (fx< end (fixnum-width)))
+         (fxrotate-bit-field n start end (bitwise-and count 31))]
+        [(positive? width)
           (let ([count (mod count width)]
                 [mask ($sll who (- ($sll who 1 width) 1) start)])
             (let ([field (logand n mask)])
@@ -3697,8 +3707,8 @@
                            ($sra who field (- width count)))
                     mask)
                   field)
-                n)))
-          n))))
+                n)))]
+        [else n]))))
 
 (set-who! fxrotate-bit-field
   (lambda (n start end count)
@@ -3714,15 +3724,17 @@
         (if (and (fixnum? count) ($fxu< count (fixnum-width)))
             ($oops who "count ~s is greater than difference between end index ~s and start index ~s" count end start)
             ($oops who "invalid count ~s" count)))
-      (let ([mask (fxsll (fxsrl -1 (fx- (fixnum-width) width)) start)])
-        (let ([field (fxlogand n mask)])
-          (fxlogor
-            (fxlogxor n field)
-            (fxlogand 
+      (if (and (constant rotate32-instruction) (fx= width 32))
+          (fxcopy-bit-field n start end (#3%$fxrotate32 (fxbit-field n start end) count))
+          (let ([mask (fxsll (fxsrl -1 (fx- (fixnum-width) width)) start)])
+            (let ([field (fxlogand n mask)])
               (fxlogor
-                (fxsll (fxlogand field (fxsrl mask count)) count)
-                (fxsrl field (fx- width count)))
-              mask)))))))
+                (fxlogxor n field)
+                (fxlogand
+                  (fxlogor
+                    (fxsll (fxlogand field (fxsrl mask count)) count)
+                    (fxsrl field (fx- width count)))
+                  mask))))))))
 
 (let ()
   (define rev-table
@@ -3741,7 +3753,7 @@
                  bv)))
       (make-rev-table)))
 
-  (define $fxreverse
+  (set! $fxreverse
     (lambda (m k)
       (do ([m m (fxsrl m 8)]
            [m^ 0 (fxior (fxsll m^ 8) (bytevector-u8-ref rev-table (fxand m #xff)))]
@@ -3761,7 +3773,7 @@
       (unless (fx<= start end)
         ($oops who "start index ~s is greater than end index ~s" start end))
       (fxcopy-bit-field n start end
-        ($fxreverse (fxbit-field n start end) (fx- end start)))))
+        (#3%$fxreverse (fxbit-field n start end) (fx- end start)))))
 
   (set-who! bitwise-reverse-bit-field
     (lambda (n start end)
@@ -3781,8 +3793,8 @@
         ($oops who "start index ~s is greater than end index ~s" start end))
       (bitwise-copy-bit-field n start end
         (do ([m (bitwise-bit-field n start end) (sra m w-1)]
-             [m^ 0 (logor (sll m^ w-1) ($fxreverse (logand m mask) w-1))]
+             [m^ 0 (logor (sll m^ w-1) (#3%$fxreverse (logand m mask) w-1))]
              [k (- end start) (- k w-1)])
-            ((<= k w-1) (logor (sll m^ k) ($fxreverse m k))))))))
+            ((<= k w-1) (logor (sll m^ k) (#3%$fxreverse m k))))))))
 ))))))))
 )

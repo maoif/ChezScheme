@@ -301,6 +301,14 @@
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-ctz ,src))])
 
+  (define-instruction value (reverse-bits)
+    [(op (dest ur) (src ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-reverse-bits ,src))])
+
+  (define-instruction value (rotate-right32)
+    [(op (dest ur) (src ur) (count ur))
+     `(set! ,(make-live-info) ,dest (asm ,info ,asm-rotate-right32 ,src ,count))])
+
   (define-instruction value (cls)
     [(op (dest ur) (src ur))
      `(set! ,(make-live-info) ,dest (asm ,info ,asm-cls ,src))])
@@ -757,7 +765,7 @@
                      asm-move asm-move/extend asm-load asm-store asm-swap asm-library-call asm-library-call! asm-library-jump
                      asm-mul asm-smulh asm-div asm-add asm-sub asm-logand asm-logor asm-logxor
                      asm-pop-multiple asm-shiftop asm-logand asm-lognot asm-cmp/asr63 asm-popcount
-                     asm-clz asm-ctz asm-cls
+                     asm-clz asm-ctz asm-cls asm-reverse-bits asm-rotate-right32
                      asm-logtest asm-fp-relop asm-relop asm-push-multiple asm-push-fpmultiple asm-pop-fpmultiple
                      asm-indirect-jump asm-literal-jump
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
@@ -873,6 +881,7 @@
 
   (define-op lsl  shift-op #b00) ; selector is at bit 10 (op2)
   (define-op lsr  shift-op #b01)
+  (define-op ror32 rotate32-op)
   (define-op asr  shift-op #b10)
 
   (define-op sxtb extend-op  #b100 #b1 #b000111) ; selectors are at bits 29 (sfc+opc), 22 (N), and 10 (imms)
@@ -2538,6 +2547,25 @@
     (lambda (code* dest src)
       (Trivit (dest src)
         (emit cls dest src code*))))
+
+  (define asm-reverse-bits
+    (lambda (code* dest src)
+      (Trivit (dest src)
+        (emit rbit dest src code*))))
+
+  (define rotate32-op
+    (lambda (op dest src count code*)
+      (emit-code (op dest src count code*)
+        [21 #xd6]
+        [16 (ax-ea-reg-code count)]
+        [10 #b001011]
+        [5 (ax-ea-reg-code src)]
+        [0 (ax-ea-reg-code dest)])))
+
+  (define asm-rotate-right32
+    (lambda (code* dest src count)
+      (Trivit (dest src count)
+        (emit ror32 dest src count code*))))
 
   (define asm-popcount
     (lambda (code* dest src tmp)
