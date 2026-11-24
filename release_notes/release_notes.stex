@@ -4154,6 +4154,23 @@ x86\_64 has been fixed.
 %-----------------------------------------------------------------------------
 \section{Performance Enhancements}\label{section:performance}
 
+\subsection{Constant fixnum division (10.5.0)}
+
+On x86\_64, AArch64, RV64, and LoongArch64, division by a fixnum
+literal can use a signed multiply-high and shifts in place of a divide
+instruction.  This optimization applies to \scheme{fxquotient},
+\scheme{fx/}, and \scheme{fxremainder}, including operations specialized
+by type recovery from \scheme{quotient} and \scheme{remainder}.
+It supports positive and negative divisors while preserving truncation
+toward zero and required type, zero-divisor, and overflow checks.
+
+Matching fixnum quotient and remainder calls in a \scheme{values}
+expression can share the quotient computation when their operands are
+immutable and the calls are known to be safe.  Nested quotients by
+constant divisors can also be combined when the intermediate quotient
+cannot overflow and the combined divisor is a fixnum.
+For a positive power-of-two divisor, \scheme{fxmodulo} can use a bit mask.
+
 \subsection{Reduced allocation and copying (9.6.0)}
 
 When given a bytevector whose length is less than \scheme{file-buffer-size},
