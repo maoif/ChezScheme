@@ -3847,3 +3847,41 @@
     (let ([f (eval '(lambda (x)
                      (values (fxquotient x -1) (fxremainder x -1))))])
       (guard (c [else #t]) (f (most-negative-fixnum)) #f))))
+
+(mat fxconstant-folds
+  (let ([inputs (list (most-negative-fixnum) (most-positive-fixnum)
+                      -101 -19 -1 0 1 19 101)])
+    (andmap
+      (lambda (level)
+        (parameterize ([optimize-level level] [enable-cp0 #t])
+          (and
+            (let ([f (eval '(lambda (x)
+                             (if (fixnum? x)
+                                 (list (fxmodulo x 8) (fxremainder x 8))
+                                 #f)))])
+              (andmap (lambda (n) (equal? (f n) (list (modulo n 8) (remainder n 8))))
+                      inputs))
+            (andmap
+              (lambda (ds)
+                (let ([d1 (car ds)] [d2 (cadr ds)])
+                  (let ([f (eval `(lambda (x)
+                                   (if (fixnum? x)
+                                       (fxquotient (fxquotient x ,d1) ,d2)
+                                       #f)))])
+                    (andmap (lambda (n) (= (f n) (quotient (quotient n d1) d2)))
+                            inputs))))
+              (list '(3 5) '(-3 5) '(3 -5) '(-3 -5) '(3 -1)
+                    (list (most-positive-fixnum) 2)
+                    (list (most-negative-fixnum) 2))))))
+      '(2 3)))
+  ;; Even when the final mathematical result fits, the inner checked quotient
+  ;; must still report its overflow or zero-divisor error.
+  (parameterize ([optimize-level 2] [enable-cp0 #t])
+    (andmap
+      (lambda (d)
+        (let ([f (eval `(lambda (x) (fxquotient (fxquotient x ,d) 3)))])
+          (guard (c [else #t]) (f (most-negative-fixnum)) #f)))
+      '(0 -1)))
+  (let ([n 0])
+    (and (= (fxquotient (fxquotient (begin (set! n (+ n 1)) 91) 3) 5) 6)
+         (= n 1))))

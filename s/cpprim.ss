@@ -2016,13 +2016,18 @@
                       ,(%inline sra ,e1 (immediate ,n))
                       (immediate ,(- (constant fixnum-factor))))))]
            [else #f])])
-      (define-inline 3 fxmod
-        [(e1 e2)
-         (nanopass-case (L7 Expr) e2
-           [(quote ,d)
-            (and (target-fixnum-power-of-two d)
-                 (%inline logand ,e1 (immediate ,(fix (- d 1)))))]
-           [else #f])])
+      (let ()
+        (define (build-fxmod/p2 e1 e2)
+          (nanopass-case (L7 Expr) e2
+            [(quote ,d)
+             (and (target-fixnum-power-of-two d)
+                  (%inline logand ,e1 (immediate ,(fix (- d 1)))))]
+            [else #f]))
+        (define-inline 3 fxmod
+          [(e1 e2) (build-fxmod/p2 e1 e2)])
+        (define-inline 3 fxmodulo
+          [(e1 e2) (build-fxmod/p2 e1 e2)])
+      )
       (let ()
         (define (build-fx* e1 e2 ovfl?)
           (define (fx*-constant e n)
@@ -2139,7 +2144,23 @@
 
           (define build-fx/
             (lambda (src sexpr e1 e2)
-              (or (nanopass-case (L7 Expr) e2
+              (or (nanopass-case (L7 Expr) e1
+                    [(call ,info ,mdcl ,pr ,e (quote ,d1))
+                     (guard (and (= (primref-level pr) 3)
+                                 (memq (primref-name pr) '(fxquotient fx/))
+                                 (not (info-call-shift-attachment? info))))
+                     (nanopass-case (L7 Expr) e2
+                       [(quote ,d2)
+                        (and (target-fixnum? d1) (target-fixnum? d2)
+                             ;; An inner /-1 can overflow even if the combined
+                             ;; quotient fits. Neither division may be by zero.
+                             (not (memv d1 '(0 -1))) (not (= d2 0))
+                             (let ([d (* d1 d2)])
+                               (and (target-fixnum? d)
+                                    (build-fx/ src sexpr e `(quote ,d)))))]
+                       [else #f])]
+                    [else #f])
+                  (nanopass-case (L7 Expr) e2
                     [(quote ,d)
                      (and (target-fixnum? d)
                           (cond
