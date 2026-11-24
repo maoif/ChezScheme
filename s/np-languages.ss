@@ -734,6 +734,7 @@
   (declare-primitive popcount value #t) ; x86_64 only
   (declare-primitive move value #t)
   (declare-primitive * value #t)
+  (declare-primitive signed-mulh value #t) ; native 64-bit signed high product
   (declare-primitive */ovfl value #f)
   (declare-primitive pop value #f)
   (declare-primitive read-performance-monitoring-counter value #t) ; on x86/x86_64 actually side-effects edx/rdx

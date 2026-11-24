@@ -10,6 +10,7 @@
 (define-constant unaligned-floats #t)
 (define-constant unaligned-integers #t)
 (define-constant integer-divide-instruction #t)
+(define-constant signed-constant-division #t)
 (define-constant popcount-instruction #t)
 (define-constant fpround-instruction #t)
 (define-constant conditional-select-instruction #t)

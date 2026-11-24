@@ -231,6 +231,10 @@
     [(op (z ur) (x ur) (y ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-mul ,x ,y))])
 
+  (define-instruction value (signed-mulh)
+    [(op (z ur) (x ur) (y ur))
+     `(set! ,(make-live-info) ,z (asm ,info ,asm-mulh ,x ,y))])
+
   (define-instruction value (*/ovfl)
     [(op (z ur) (x ur) (y ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-mul/ovfl ,x ,y))])
@@ -618,7 +622,7 @@
   )
 
 (module asm-module (asm-add asm-add/carry asm-add/ovfl asm-sub asm-sub/ovfl asm-sub/eq
-                    asm-mul asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
+                    asm-mul asm-mulh asm-mul/ovfl asm-div asm-logand asm-logor asm-logxor asm-lognot
                     asm-read-performance-monitoring-counter asm-read-time-stamp-counter asm-inc-cc-counter
                     asm-enter asm-sll asm-srl asm-sra asm-fpsqrt asm-fptrunc asm-fpt asm-fpcastto asm-fpcastfrom
                     asm-single->double asm-double->single
@@ -1127,6 +1131,11 @@
     (lambda (code* dest src0 src1)
       (Trivit (dest src0 src1)
               (emit mul.d dest src0 src1 code*))))
+
+  (define asm-mulh
+    (lambda (code* dest src0 src1)
+      (Trivit (dest src0 src1)
+              (emit mulh.d dest src0 src1 code*))))
 
   (define asm-mul/ovfl
     (lambda (code* dest src0 src1)

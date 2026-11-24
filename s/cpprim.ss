@@ -14,6 +14,7 @@
 (include "np-register.ss")
 (include "np-info.ss")
 (include "np-help.ss")
+(include "constant-division.ss")
 
 ;; --------------------------------------------------------------------------------
 
@@ -2084,12 +2085,35 @@
                          (immediate ,(fx- (constant fixnum-bits) p2))))
                      (immediate ,(fx+ p2 (constant fixnum-offset))))))))
 
+          (define (build-fx/constant e d)
+            (let-values ([(m shift) (signed-division-magic (fix d) (constant ptr-bits))])
+              (bind #t (e)
+                ;; Only e and the final result are tagged Scheme values. The
+                ;; high product and corrections use signed target-word arithmetic.
+                (bind #t uptr ([high (%inline signed-mulh ,e (immediate ,m))])
+                  (bind #t uptr ([q (%inline sra
+                                      ,(cond
+                                         [(and (> d 0) (< m 0)) (%inline + ,high ,e)]
+                                         [(and (< d 0) (> m 0)) (%inline - ,high ,e)]
+                                         [else high])
+                                      (immediate ,shift))])
+                    ;; Add one to a negative floor quotient to truncate to zero.
+                    (build-fix (%inline + ,q
+                                 ,(%inline srl ,q (immediate ,(- (constant ptr-bits) 1))))))))))
+
           (define build-fx/
             (lambda (src sexpr e1 e2)
               (or (nanopass-case (L7 Expr) e2
                     [(quote ,d)
-                     (let ([i (target-fixnum-power-of-two d)])
-                       (and i (build-fx/p2 e1 i)))]
+                     (and (target-fixnum? d)
+                          (cond
+                            [(= d 1) e1]
+                            [(target-fixnum-power-of-two d) =>
+                             (lambda (i) (build-fx/p2 e1 i))]
+                            [(and (constant signed-constant-division)
+                                  (not (= d 0)) (not (= d -1)))
+                             (build-fx/constant e1 d)]
+                            [else #f]))]
                     [else #f])
                   (if (constant integer-divide-instruction)
                       (build-fix (%inline / ,e1 ,e2))

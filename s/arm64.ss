@@ -260,6 +260,10 @@
     [(op (z ur) (x ur) (y ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-mul ,x ,y))])
 
+  (define-instruction value (signed-mulh)
+    [(op (z ur) (x ur) (y ur))
+     `(set! ,(make-live-info) ,z (asm ,info ,asm-smulh ,x ,y))])
+
   (define-instruction value (*/ovfl) ; z flag set iff no overflow
     ; no imm form available
     [(op (z ur) (x ur) (y ur))

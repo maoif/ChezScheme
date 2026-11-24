@@ -499,6 +499,19 @@
          `(set! ,(make-live-info) ,t (asm ,info ,asm-mul ,t ,y))
          `(set! ,(make-live-info) ,z ,t)))])
 
+  (define-instruction value (signed-mulh)
+    [(op (z ur) (x ur mem) (y ur mem))
+     (let ([urax (make-precolored-unspillable 'urax %rax)]
+           [urdx (make-precolored-unspillable 'urdx %rdx)])
+       (seq
+         `(set! ,(make-live-info) ,urax ,x)
+         `(set! ,(make-live-info) ,urdx (asm ,null-info ,asm-mulh ,urax ,y))
+         ;; One-operand IMUL writes both RDX and RAX. The kill emits no code,
+         ;; but prevents a live numerator from being left in the low product.
+         `(set! ,(make-live-info) ,urax (asm ,null-info ,asm-kill))
+         `(asm ,null-info ,asm-kill ,urax)
+         `(set! ,(make-live-info) ,z ,urdx)))])
+
   (define-instruction value (/)
     (definitions
       (define go
@@ -1001,7 +1014,7 @@
 ;;; SECTION 3: assembler
 (module asm-module (; required exports
                      asm-move asm-move/extend asm-load asm-store asm-swap asm-library-call asm-library-jump
-                     asm-mul asm-muli asm-addop asm-add asm-sub asm-negate asm-sub-negate
+                     asm-mul asm-mulh asm-muli asm-addop asm-add asm-sub asm-negate asm-sub-negate
                      asm-pop asm-shiftop asm-sll asm-logand asm-lognot
                      asm-logtest asm-fp-relop asm-relop asm-push asm-indirect-jump asm-literal-jump
                      asm-direct-jump asm-return-address asm-jump asm-conditional-jump
@@ -1124,7 +1137,7 @@
   (define-op bswap (#;l *) bswap-op)
  
   (define-op divsax (*) unary-op   #b1111011  #b111)
-  #;(define-op mulsax (*) unary-op   #b1111011  #b100)
+  (define-op mulsax (*) unary-op   #b1111011  #b101)
   (define-op muls mulq-op #b10101111)
   (define-op mulsi muliq-op    #b01101001)
 
@@ -2317,6 +2330,12 @@
                                   code*
                                   (emit asli `(imm ,shift) dest code*))])
                   code*))))))))
+
+  (define asm-mulh
+    (lambda (code* dest-rdx src-rax src)
+      (Trivit (src)
+        (safe-assert (and (eq? dest-rdx %rdx) (eq? src-rax %rax)))
+        (emit mulsax src code*))))
 
   (define asm-div
     (lambda (code* dest-rax src-rax src-rdx src2)

@@ -3712,3 +3712,84 @@
                (error 'failed "~a oops ~s\n" i v)))
            (loop (sub1 i))]))))
   )
+
+(mat fxconstant-division
+  ;; The numerator is a compiled procedure argument: none of these divisions
+  ;; can disappear through constant folding. Reference arithmetic stays exact.
+  (let ([inputs (append
+                  (list (most-negative-fixnum) (+ (most-negative-fixnum) 1)
+                        (most-positive-fixnum) (- (most-positive-fixnum) 1)
+                        -101 -100 -99 -20 -19 -10 -9 -1 0 1 9 10 19 20 99 100 101)
+                  (map (lambda (i) (- (random (most-positive-fixnum))
+                                      (quotient (most-positive-fixnum) 2)))
+                       (iota 100)))])
+    (andmap
+      (lambda (level)
+        (parameterize ([optimize-level level] [enable-cp0 #t])
+          (andmap
+            (lambda (d)
+              (andmap
+                (lambda (prim ref)
+                  (let ([f (eval `(lambda (x)
+                                   (if (fixnum? x) (,prim x ,d) #f)))])
+                    (andmap (lambda (n) (= (f n) (ref n d)))
+                            (append inputs
+                              (filter fixnum?
+                                (list (- d 1) d (+ d 1) (- (* d 2) 1)
+                                      (* d 2) (+ (* d 2) 1)))))))
+                '(fxquotient fx/ quotient fxremainder remainder)
+                (list quotient quotient quotient remainder remainder)))
+            (append '(1 2 3 4 7 8 10 31 63 100 127 1023
+                      -2 -3 -4 -7 -8 -10 -31 -63 -100 -127 -1023)
+                    (list (most-negative-fixnum) (most-positive-fixnum)
+                          (+ (most-negative-fixnum) 1))))))
+      '(2 3)))
+  ;; Keep the checked paths for unknown operands and exceptional divisors.
+  (parameterize ([optimize-level 2] [enable-cp0 #t])
+    (let ([q (eval '(lambda (x d) (fxquotient x d)))]
+          [r (eval '(lambda (x d) (fxremainder x d)))])
+      (and (guard (c [else #t]) (q (most-negative-fixnum) -1) #f)
+           (= (r (most-negative-fixnum) -1) 0)
+           (guard (c [else #t]) (q 12 0) #f)
+           (guard (c [else #t]) (q 1.0 10) #f)
+           (guard (c [else #t]) (q (+ (most-positive-fixnum) 1) 10) #f)
+           (= (q -19 10) -1)
+           (= (q 19 -10) -1)
+           (= (r -19 10) -9)))))
+
+(mat signed-division-magic
+  (let ()
+    (define-syntax include-magic
+      (lambda (x)
+        (syntax-case x ()
+          [(k) (datum->syntax #'k `(include ,(find-source "../s/constant-division.ss")))])))
+    (include-magic)
+    (define (check-divisor d width inputs)
+      (let-values ([(m s) (signed-division-magic d width)])
+        (let* ([word (expt 2 width)] [half (quotient word 2)]
+               [signed (lambda (x) (- (modulo (+ x half) word) half))])
+          (for-each
+            (lambda (n)
+              (let* ([hi (div (* n m) word)]
+                     [a (signed (cond
+                                  [(and (> d 0) (< m 0)) (+ hi n)]
+                                  [(and (< d 0) (> m 0)) (- hi n)]
+                                  [else hi]))]
+                     [q (bitwise-arithmetic-shift-right a s)]
+                     [q (+ q (if (< q 0) 1 0))])
+                (unless (= q (quotient n d))
+                  (error 'magic "incorrect quotient" width d n m s q))))
+            inputs))))
+
+    (do ([width 3 (+ width 1)]) ((> width 9))
+      (let* ([half (expt 2 (- width 1))]
+             [inputs (map (lambda (n) (- n half)) (iota (* 2 half)))])
+        (do ([d (- half) (+ d 1)]) ((= d half))
+          (unless (memv d '(-1 0 1)) (check-divisor d width inputs)))))
+    (let* ([half (expt 2 63)]
+           [edges (list (- half) (+ (- half) 1) (- half 1) (- half 2) -100 -19 -1 0 1 19 100)]
+           [inputs (append edges (map (lambda (i) (- (random (* 2 half)) half)) (iota 1000)))])
+      (for-each
+        (lambda (d) (unless (memv d '(-1 0 1)) (check-divisor d 64 inputs)))
+        (append edges (map (lambda (i) (- (random (* 2 half)) half)) (iota 1000)))))
+    #t))
