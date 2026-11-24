@@ -509,6 +509,7 @@
          ;; One-operand IMUL writes both RDX and RAX. The kill emits no code,
          ;; but prevents a live numerator from being left in the low product.
          `(set! ,(make-live-info) ,urax (asm ,null-info ,asm-kill))
+         ;; The allocator requires a use of each unspillable definition.
          `(asm ,null-info ,asm-kill ,urax)
          `(set! ,(make-live-info) ,z ,urdx)))])
 

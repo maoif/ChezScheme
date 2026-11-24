@@ -3757,6 +3757,16 @@
            (= (q 19 -10) -1)
            (= (r -19 10) -9)))))
 
+(mat checked-literal-division
+  (parameterize ([optimize-level 2] [enable-cp0 #t])
+    (andmap
+      (lambda (prim)
+        (let ([f (eval `(lambda (x) (,prim x 10)))])
+          (and (guard (c [else #t]) (f 1.0) #f)
+               (guard (c [else #t]) (f (+ (most-positive-fixnum) 1)) #f)
+               (guard (c [else #t]) (f 'not-a-number) #f))))
+      '(fxquotient fx/ fxremainder))))
+
 (mat signed-division-magic
   (let ()
     (define-syntax include-magic
