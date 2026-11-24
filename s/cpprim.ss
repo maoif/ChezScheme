@@ -113,6 +113,14 @@
       (define Expr*
         (lambda (e*)
           (map Expr1 e*)))
+      (define (same-division-operand? e1 e2)
+        (nanopass-case (L7 Expr) e1
+          [,x (and (uvar? x) (not (uvar-assigned? x)) (eq? x e2))]
+          [(quote ,d1)
+           (nanopass-case (L7 Expr) e2
+             [(quote ,d2) (eqv? d1 d2)]
+             [else #f])]
+          [else #f]))
       (define unboxed-fp->boxed
         (lambda (e)
           (let ([t (make-tmp 't)]
@@ -225,6 +233,34 @@
                         (%mref ,e ,%zero ,(constant flonum-data-disp) fp)
                         e)])
              (values `(set! ,lvalue ,e) #f))))]
+      [(values ,info
+         (call ,info1 ,mdcl1 ,pr1 ,e1 (quote ,d1))
+         (call ,info2 ,mdcl2 ,pr2 ,e2 (quote ,d2)))
+       ;; Both calls are already proven safe, and their operands cannot change
+       ;; or have effects. Share only this local pair, before expanding either.
+       (guard (and (= (primref-level pr1) 3) (= (primref-level pr2) 3)
+                   (not (info-call-shift-attachment? info1))
+                   (not (info-call-shift-attachment? info2))
+                   (or (and (memq (primref-name pr1) '(fxquotient fx/))
+                            (eq? (primref-name pr2) 'fxremainder))
+                       (and (eq? (primref-name pr1) 'fxremainder)
+                            (memq (primref-name pr2) '(fxquotient fx/))))
+                   (target-fixnum? d1) (eqv? d1 d2)
+                   (not (memv d1 '(0 -1)))
+                   (same-division-operand? e1 e2)))
+       (let ([q (make-tmp 'q)]
+             [q-first? (not (eq? (primref-name pr1) 'fxremainder))]
+             [op-info (make-info-call #f #f #f #f #f)])
+         (Expr
+           (with-output-language (L7 Expr)
+             (let ([q-call (if q-first?
+                              `(call ,info1 ,mdcl1 ,pr1 ,e1 (quote ,d1))
+                              `(call ,info2 ,mdcl2 ,pr2 ,e2 (quote ,d2)))]
+                   [r `(call ,op-info #f ,(lookup-primref 3 'fx-) ,e1
+                         (call ,op-info #f ,(lookup-primref 3 'fx*) ,q (quote ,d1)))])
+               `(let ([,q ,q-call])
+                  (values ,info ,(if q-first? q r) ,(if q-first? r q)))))
+           can-unbox-fp?))]
       [(values ,info ,[e* #f -> e* unboxed-fp?*] ...) (values `(values ,info ,e* ...) #f)]
       [(alloc ,info ,e) (values `(alloc ,info ,(Expr1 e)) #f)]
       [(if ,[e0 #f -> e0 unboxed-fp?0] ,[e1 can-unbox-fp? -> e1 unboxed-fp?1] ,[e2 can-unbox-fp? -> e2 unboxed-fp?2])

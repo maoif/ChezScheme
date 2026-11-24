@@ -3793,3 +3793,47 @@
         (lambda (d) (unless (memv d '(-1 0 1)) (check-divisor d 64 inputs)))
         (append edges (map (lambda (i) (- (random (* 2 half)) half)) (iota 1000)))))
     #t))
+
+(mat fxquotient/remainder-sharing
+  (let ([inputs (list (most-negative-fixnum) (most-positive-fixnum)
+                      -101 -19 -1 0 1 19 101)])
+    (andmap
+      (lambda (level)
+        (parameterize ([optimize-level level] [enable-cp0 #t])
+          (andmap
+            (lambda (d)
+              (let ([qr (eval `(lambda (x)
+                                (if (fixnum? x)
+                                    (values (fxquotient x ,d) (fxremainder x ,d))
+                                    (values #f #f))))]
+                    [rq (eval `(lambda (x)
+                                (if (fixnum? x)
+                                    (values (fxremainder x ,d) (fxquotient x ,d))
+                                    (values #f #f))))])
+                (andmap
+                  (lambda (n)
+                    (and (equal? (call-with-values (lambda () (qr n)) list)
+                                 (list (quotient n d) (remainder n d)))
+                         (equal? (call-with-values (lambda () (rq n)) list)
+                                 (list (remainder n d) (quotient n d)))))
+                  inputs)))
+            (list 3 7 10 -3 -7 -10 (most-negative-fixnum) (most-positive-fixnum)))))
+      '(2 3)))
+  (equal?
+    (let ([n 0])
+      (let-values ([(q r)
+                    (values (fxquotient (begin (set! n (+ n 1)) -19) 10)
+                            (fxremainder (begin (set! n (+ n 1)) -19) 10))])
+        (list q r n)))
+    '(-1 -9 2))
+  (equal?
+    ((lambda (x)
+       (let ([q (fxquotient x 10)])
+         (set! x 99)
+         (list q (fxremainder x 10))))
+     19)
+    '(1 9))
+  (parameterize ([optimize-level 2] [enable-cp0 #t])
+    (let ([f (eval '(lambda (x)
+                     (values (fxquotient x -1) (fxremainder x -1))))])
+      (guard (c [else #t]) (f (most-negative-fixnum)) #f))))
