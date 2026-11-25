@@ -3767,43 +3767,6 @@
                (guard (c [else #t]) (f 'not-a-number) #f))))
       '(fxquotient fx/ fxremainder))))
 
-(mat signed-division-magic
-  (let ()
-    (define-syntax include-magic
-      (lambda (x)
-        (syntax-case x ()
-          [(k) (datum->syntax #'k `(include ,(find-source "../s/constant-division.ss")))])))
-    (include-magic)
-    (define (check-divisor d width inputs)
-      (let-values ([(m s) (signed-division-magic d width)])
-        (let* ([word (expt 2 width)] [half (quotient word 2)]
-               [signed (lambda (x) (- (modulo (+ x half) word) half))])
-          (for-each
-            (lambda (n)
-              (let* ([hi (div (* n m) word)]
-                     [a (signed (cond
-                                  [(and (> d 0) (< m 0)) (+ hi n)]
-                                  [(and (< d 0) (> m 0)) (- hi n)]
-                                  [else hi]))]
-                     [q (bitwise-arithmetic-shift-right a s)]
-                     [q (+ q (if (< q 0) 1 0))])
-                (unless (= q (quotient n d))
-                  (error 'magic "incorrect quotient" width d n m s q))))
-            inputs))))
-
-    (do ([width 3 (+ width 1)]) ((> width 9))
-      (let* ([half (expt 2 (- width 1))]
-             [inputs (map (lambda (n) (- n half)) (iota (* 2 half)))])
-        (do ([d (- half) (+ d 1)]) ((= d half))
-          (unless (memv d '(-1 0 1)) (check-divisor d width inputs)))))
-    (let* ([half (expt 2 63)]
-           [edges (list (- half) (+ (- half) 1) (- half 1) (- half 2) -100 -19 -1 0 1 19 100)]
-           [inputs (append edges (map (lambda (i) (- (random (* 2 half)) half)) (iota 1000)))])
-      (for-each
-        (lambda (d) (unless (memv d '(-1 0 1)) (check-divisor d 64 inputs)))
-        (append edges (map (lambda (i) (- (random (* 2 half)) half)) (iota 1000)))))
-    #t))
-
 (mat fxquotient/remainder-sharing
   (let ([inputs (list (most-negative-fixnum) (most-positive-fixnum)
                       -101 -19 -1 0 1 19 101)])

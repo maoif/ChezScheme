@@ -14,7 +14,6 @@
 (include "np-register.ss")
 (include "np-info.ss")
 (include "np-help.ss")
-(include "constant-division.ss")
 
 ;; --------------------------------------------------------------------------------
 
@@ -2113,6 +2112,34 @@
                     ,(build-fx* e1 e2 #f)
                     ,(build-libcall #t src sexpr fx*/wraparound e1 e2)))]))
         (let ()
+          ;; Signed multiply-high multiplier and shift for division by d,
+          ;; using Hacker's Delight, section 10-3. d is a signed width-bit
+          ;; integer other than 0 or +/-1. Only the counter and shift counts
+          ;; are bounded fixnums; word-sized intermediates need exact arithmetic
+          ;; even when the compiler host has fewer bits than the target.
+          (define (signed-division-magic d width)
+            (let* ([half (expt 2 (fx- width 1))]
+                   [ad (abs d)]
+                   [t (+ half (if (< d 0) 1 0))]
+                   [anc (- t 1 (modulo t ad))])
+              (let loop ([p (fx- width 1)]
+                         [q1 (quotient half anc)] [r1 (modulo half anc)]
+                         [q2 (quotient half ad)] [r2 (modulo half ad)])
+                (let* ([p (fx+ p 1)]
+                       [r1 (* r1 2)]
+                       [q1 (+ (* q1 2) (if (>= r1 anc) 1 0))]
+                       [r1 (if (>= r1 anc) (- r1 anc) r1)]
+                       [r2 (* r2 2)]
+                       [q2 (+ (* q2 2) (if (>= r2 ad) 1 0))]
+                       [r2 (if (>= r2 ad) (- r2 ad) r2)]
+                       [delta (- ad r2)])
+                  (if (or (< q1 delta) (and (= q1 delta) (= r1 0)))
+                      (loop p q1 r1 q2 r2)
+                      (let ([m (* (+ q2 1) (if (< d 0) -1 1))])
+                        ;; Interpret the multiplier as a signed target word.
+                        (values (- (modulo (+ m half) (* half 2)) half)
+                                (fx- p width))))))))
+
           (define build-fx/p2
             (lambda (e1 p2)
               (bind #t (e1)
