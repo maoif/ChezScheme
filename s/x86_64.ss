@@ -499,7 +499,7 @@
          `(set! ,(make-live-info) ,t (asm ,info ,asm-mul ,t ,y))
          `(set! ,(make-live-info) ,z ,t)))])
 
-  (define-instruction value (signed-mulh)
+  (define-instruction value (*/high)
     [(op (z ur) (x ur mem) (y ur mem))
      (let ([urax (make-precolored-unspillable 'urax %rax)]
            [urdx (make-precolored-unspillable 'urdx %rdx)])

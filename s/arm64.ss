@@ -260,7 +260,7 @@
     [(op (z ur) (x ur) (y ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-mul ,x ,y))])
 
-  (define-instruction value (signed-mulh)
+  (define-instruction value (*/high)
     [(op (z ur) (x ur) (y ur))
      `(set! ,(make-live-info) ,z (asm ,info ,asm-smulh ,x ,y))])
 

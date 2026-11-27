@@ -2158,7 +2158,7 @@
               (bind #t (e)
                 ;; Only e and the final result are tagged Scheme values. The
                 ;; high product and corrections use signed target-word arithmetic.
-                (bind #t uptr ([high (%inline signed-mulh ,e (immediate ,m))])
+                (bind #t uptr ([high (%inline */high ,e (immediate ,m))])
                   (bind #t uptr ([q (%inline sra
                                       ,(cond
                                          [(and (> d 0) (< m 0)) (%inline + ,high ,e)]
